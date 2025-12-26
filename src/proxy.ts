@@ -12,10 +12,21 @@ export function proxy(request: NextRequest) {
   // Public routes that don't require authentication
   const publicRoutes = ["/auth/v2/login", "/auth/v2/register", "/auth/v1/login", "/auth/v1/register", "/"];
 
+  // Protected routes that require authentication
+  const protectedRoutes = ["/dashboard", "/unauthorized"];
+
   // Check if the current route is public
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+
+  // Check if the current route is protected
+  const isProtectedRoute = protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
   // If user is not authenticated and trying to access protected route
+  if (!token && isProtectedRoute) {
+    return NextResponse.redirect(new URL("/auth/v2/login", request.url));
+  }
+
+  // If user is not authenticated and route is not public (catch-all for other routes)
   if (!token && !isPublicRoute) {
     return NextResponse.redirect(new URL("/auth/v2/login", request.url));
   }
