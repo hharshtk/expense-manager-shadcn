@@ -63,6 +63,11 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/finance",
         icon: Banknote,
       },
+      {
+        title: "Expense",
+        url: "/dashboard/expense",
+        icon: ReceiptText,
+      },
     ],
   },
 ];
