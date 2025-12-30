@@ -31,14 +31,14 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
   // Use NextAuth user if available, otherwise use custom auth user
   const user = session?.user
     ? {
-        id: parseInt(session.user.id),
+        id: parseInt(session.user.id, 10),
         email: session.user.email || "",
         name: session.user.name || null,
       }
     : customUser;
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen}>
+    <SidebarProvider defaultOpen={defaultOpen} suppressHydrationWarning>
       <AppSidebar variant={variant} collapsible={collapsible} user={user} />
       <SidebarInset
         className={cn(

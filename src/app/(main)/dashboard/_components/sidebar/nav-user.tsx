@@ -50,7 +50,7 @@ export function NavUser({ user }: { readonly user: User }) {
   }
 
   // Type guard to check if user has image property
-  const hasImage = (u: any): u is { image?: string } => "image" in u;
+  const hasImage = (u: User): u is { image?: string } => "image" in u;
 
   return (
     <SidebarMenu>
@@ -60,6 +60,7 @@ export function NavUser({ user }: { readonly user: User }) {
             <SidebarMenuButton
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              suppressHydrationWarning
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage
