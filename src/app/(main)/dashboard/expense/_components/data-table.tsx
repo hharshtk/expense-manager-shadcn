@@ -49,18 +49,14 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [form, setForm] = React.useState<ExpenseFormState>({
-    date: "",
+  const [form, setForm] = React.useState<ExpenseFormState>(() => ({
+    date: new Date().toISOString().slice(0, 10),
     description: "",
     type: "expense",
     amount: "",
     notes: "",
     isConfirmed: true,
-  });
-
-  React.useEffect(() => {
-    setForm((prev) => ({ ...prev, date: new Date().toISOString().slice(0, 10) }));
-  }, []);
+  }));
 
   const canSubmit = form.description.trim().length > 0 && form.amount.trim().length > 0 && !isSubmitting;
 

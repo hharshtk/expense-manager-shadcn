@@ -51,6 +51,17 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
     isConfirmed: item.isConfirmed ?? true,
   });
 
+  React.useEffect(() => {
+    setForm({
+      type: item.type,
+      amount: item.amount,
+      description: item.description || "",
+      date: item.date,
+      notes: item.notes || "",
+      isConfirmed: item.isConfirmed ?? true,
+    });
+  }, [item]);
+
   const amount = Number.parseFloat(item.amount);
   const signedAmount = item.type === "expense" ? -amount : amount;
 
