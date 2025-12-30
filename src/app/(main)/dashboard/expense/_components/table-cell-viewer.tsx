@@ -78,18 +78,6 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
     }
   };
 
-  // Reset form when item changes
-  React.useEffect(() => {
-    setForm({
-      type: item.type,
-      amount: item.amount,
-      description: item.description || "",
-      date: item.date,
-      notes: item.notes || "",
-      isConfirmed: item.isConfirmed ?? true,
-    });
-  }, [item]);
-
   return (
     <Drawer direction={isMobile ? "bottom" : "right"} open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>

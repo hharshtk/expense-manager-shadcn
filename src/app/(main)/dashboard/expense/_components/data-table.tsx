@@ -251,12 +251,20 @@ export function DataTable({ data: initialData }: { data: Transaction[] }) {
     setIsDeleting(false);
   };
 
+  const [isMounted, setIsMounted] = React.useState(false);
+
   React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isMounted) return;
+
     const typeColumn = table.getColumn("type");
     if (!typeColumn) return;
 
     typeColumn.setFilterValue(activeView === "all" ? undefined : activeView);
-  }, [activeView, table]);
+  }, [activeView, table, isMounted]);
 
   // Sync with server data
   React.useEffect(() => {

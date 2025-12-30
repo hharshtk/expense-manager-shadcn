@@ -56,7 +56,7 @@ export function createColumns({ onDelete, onUpdate }: ColumnActions): ColumnDef<
       accessorKey: "description",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
       cell: ({ row }) => {
-        return <TableCellViewer item={row.original} onUpdate={onUpdate} />;
+        return <TableCellViewer key={row.original.id} item={row.original} onUpdate={onUpdate} />;
       },
       enableSorting: false,
     },

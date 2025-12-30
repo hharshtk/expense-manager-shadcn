@@ -50,7 +50,7 @@ export function NavUser({ user }: { readonly user: User }) {
   }
 
   // Type guard to check if user has image property
-  const hasImage = (u: User): u is { image?: string } => "image" in u;
+  const hasImage = (u: any): u is { image?: string } => !!u && "image" in u;
 
   return (
     <SidebarMenu>
