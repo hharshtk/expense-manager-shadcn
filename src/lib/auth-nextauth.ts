@@ -26,6 +26,7 @@ export const authOptions: NextAuthOptions = {
           const existingUser = await db.query("SELECT id, email FROM users WHERE email = $1", [user.email]);
 
           if (existingUser.rows.length === 0) {
+            console.log("[NextAuth] Creating new user:", user.email);
             // Create new user
             const result = await db.query(
               "INSERT INTO users (email, name, password_hash, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id",
@@ -38,7 +39,7 @@ export const authOptions: NextAuthOptions = {
 
           return true;
         } catch (error) {
-          console.error("Error during Google sign-in:", error);
+          console.error("[NextAuth] Error during Google sign-in:", error);
           return false;
         }
       }
@@ -58,7 +59,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    signIn: "/auth",
+    signIn: "/auth/v2/login",
   },
   secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   debug: process.env.NODE_ENV === "development",

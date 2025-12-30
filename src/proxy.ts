@@ -5,31 +5,16 @@ import { withAuth } from "next-auth/middleware";
 
 function middleware(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
-  const nextAuthToken = request.cookies.get("next-auth.session-token")?.value;
   const { pathname } = request.nextUrl;
 
-  // Public routes that don't require authentication
-  const publicRoutes = ["/auth", "/api/auth"];
-
-  // Protected routes that require authentication
-  const protectedRoutes = ["/dashboard"];
-
-  // Check if the current route is public
-  const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-
-  // Check if the current route is protected
-  const isProtectedRoute = protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-
-  // Check if user has either custom auth token or NextAuth session
-  const isAuthenticated = token || nextAuthToken;
-
-  // If user is not authenticated and trying to access protected route
-  if (!isAuthenticated && isProtectedRoute) {
-    return NextResponse.redirect(new URL("/auth", request.url));
+  // Allow access to API auth routes always
+  if (pathname.startsWith("/api/auth")) {
+    return NextResponse.next();
   }
 
-  // If user is authenticated and trying to access auth pages, redirect to dashboard
-  if (isAuthenticated && pathname.startsWith("/auth/") && !pathname.startsWith("/auth/v2/")) {
+  // If user has custom auth token and trying to access auth pages, redirect to dashboard
+  if (token && pathname.startsWith("/auth")) {
+    console.log("[Middleware] Redirecting authenticated custom user to /dashboard");
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -39,16 +24,27 @@ function middleware(request: NextRequest) {
 export default withAuth(middleware, {
   callbacks: {
     authorized: ({ token, req }) => {
-      // Allow access to public routes
       const { pathname } = req.nextUrl;
-      const publicRoutes = ["/auth", "/api/auth"];
-      const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
-      if (isPublicRoute) return true;
+      // Always allow API auth routes
+      if (pathname.startsWith("/api/auth")) {
+        return true;
+      }
 
-      // For protected routes, check if user has session
-      return !!token;
+      // Allow auth pages and home page
+      if (pathname.startsWith("/auth") || pathname === "/") {
+        return true;
+      }
+
+      // For other routes, check if NextAuth session exists OR custom token
+      const customToken = req.cookies.get("auth-token")?.value;
+      const hasValidSession = !!token; // NextAuth validates the session
+
+      return hasValidSession || !!customToken;
     },
+  },
+  pages: {
+    signIn: "/auth/v2/login",
   },
 });
 
