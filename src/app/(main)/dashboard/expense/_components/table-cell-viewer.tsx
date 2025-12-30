@@ -1,9 +1,11 @@
 import * as React from "react";
 
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { format } from "date-fns";
+import { ArrowDownLeft, ArrowUpRight, CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Drawer,
   DrawerClose,
@@ -16,9 +18,11 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 import { updateExpense } from "../_actions/expense-actions";
 import type { Transaction } from "./schema";
@@ -149,12 +153,33 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-3">
                 <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !form.date && "text-muted-foreground",
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {form.date ? format(new Date(form.date), "dd-MMM-yy") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={form.date ? new Date(form.date) : undefined}
+                      onSelect={(date) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          date: date ? format(date, "yyyy-MM-dd") : "",
+                        }))
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="flex flex-col gap-3">
                 <Label htmlFor="amount">Amount</Label>

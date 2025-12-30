@@ -3,7 +3,8 @@
 
 import * as React from "react";
 
-import { Plus, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { DataTable as DataTableNew } from "@/components/data-table/data-table";
@@ -12,6 +13,7 @@ import { DataTableViewOptions } from "@/components/data-table/data-table-view-op
 import { withDndColumn } from "@/components/data-table/table-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Drawer,
   DrawerClose,
@@ -23,10 +25,12 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDataTableInstance } from "@/hooks/use-data-table-instance";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 import { createExpense, deleteExpenses } from "../_actions/expense-actions";
 import { createColumns } from "./columns";
@@ -151,12 +155,30 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-3">
               <Label htmlFor="tx-date">Date</Label>
-              <Input
-                id="tx-date"
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn("w-full justify-start text-left font-normal", !form.date && "text-muted-foreground")}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {form.date ? format(new Date(form.date), "dd-MMM-yy") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={form.date ? new Date(form.date) : undefined}
+                    onSelect={(date) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        date: date ? format(date, "yyyy-MM-dd") : "",
+                      }))
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex flex-col gap-3">
               <Label htmlFor="tx-amount">Amount</Label>
