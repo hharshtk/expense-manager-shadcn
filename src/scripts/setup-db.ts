@@ -21,7 +21,7 @@ async function setupDatabase() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255),
         name VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -29,6 +29,17 @@ async function setupDatabase() {
     `);
 
     console.log("✅ Users table created successfully");
+
+    // Make password_hash nullable for OAuth users
+    await pool
+      .query(`
+      ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+    `)
+      .catch(() => {
+        // Ignore error if column is already nullable
+      });
+
+    console.log("✅ Users table updated for OAuth support");
 
     // Create sessions table for managing user sessions
     await pool.query(`

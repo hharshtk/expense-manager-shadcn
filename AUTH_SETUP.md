@@ -1,6 +1,6 @@
 # Authentication Setup
 
-This project uses a custom JWT-based authentication system with Neon PostgreSQL database.
+This project uses a custom JWT-based authentication system with Neon PostgreSQL database and Google OAuth integration.
 
 ## Setup Complete ✅
 
@@ -15,6 +15,7 @@ The authentication system has been successfully configured with the following co
 ### Authentication Features
 - ✅ User registration with email and password
 - ✅ User login with JWT token generation
+- ✅ Google OAuth sign-in
 - ✅ Password hashing using bcrypt
 - ✅ Protected routes via middleware
 - ✅ Session management with HTTP-only cookies
@@ -25,14 +26,22 @@ The authentication system has been successfully configured with the following co
 ### New Files
 1. `/src/lib/db.ts` - Database connection pool
 2. `/src/lib/auth.ts` - Authentication utilities (JWT, password hashing)
-3. `/src/server/auth-actions.ts` - Server actions for login/register/logout
-4. `/src/scripts/setup-db.ts` - Database schema setup script
-5. `/src/middleware.ts` - Route protection middleware
+3. `/src/lib/auth-nextauth.ts` - NextAuth configuration for Google OAuth
+4. `/src/server/auth-actions.ts` - Server actions for login/register/logout
+5. `/src/scripts/setup-db.ts` - Database schema setup script
+6. `/src/middleware.ts` - Route protection middleware
+7. `/src/app/api/auth/[...nextauth]/route.ts` - NextAuth API route
+8. `/src/components/providers.tsx` - NextAuth session provider
+9. `/src/types/next-auth.d.ts` - NextAuth type declarations
 
 ### Modified Files
-1. `/src/app/(main)/auth/_components/login-form.tsx` - Connected to auth backend
+1. `/src/app/(main)/auth/_components/login-form.tsx` - Added Google sign-in button
 2. `/src/app/(main)/auth/_components/register-form.tsx` - Connected to auth backend
-3. `/src/app/(main)/dashboard/_components/sidebar/nav-user.tsx` - Added logout functionality
+3. `/src/app/(main)/dashboard/_components/sidebar/nav-user.tsx` - Added logout functionality for both auth types
+4. `/src/app/(main)/dashboard/_components/sidebar/account-switcher.tsx` - Updated to handle both auth types
+5. `/src/app/(main)/dashboard/_components/sidebar/app-sidebar.tsx` - Updated user type
+6. `/src/app/(main)/dashboard/layout.tsx` - Added NextAuth session support
+7. `/src/app/layout.tsx` - Added NextAuth session provider
 
 ## Usage
 
@@ -61,6 +70,12 @@ npm run dev
 - Submit the form
 - You'll be redirected to `/dashboard`
 
+**Google Sign-in:**
+- Navigate to `/auth/v2/login`
+- Click "Continue with Google"
+- Complete Google OAuth flow
+- You'll be redirected to `/dashboard`
+
 **Logout:**
 - Click on your avatar in the sidebar
 - Click "Log out"
@@ -83,6 +98,9 @@ Make sure your `.env.local` file contains:
 \`\`\`
 DATABASE_URL='your-neon-connection-string'
 JWT_SECRET='your-super-secret-jwt-key-change-this-in-production-123456789'
+GOOGLE_CLIENT_ID='your-google-client-id'
+GOOGLE_CLIENT_SECRET='your-google-client-secret'
+NEXTAUTH_SECRET='your-nextauth-secret-key'
 \`\`\`
 
 ## Security Features
@@ -94,12 +112,16 @@ JWT_SECRET='your-super-secret-jwt-key-change-this-in-production-123456789'
 - ✅ Secure cookies in production
 - ✅ Protected routes via middleware
 
-## Google OAuth (To Be Implemented)
+## Google OAuth
 
-The Google OAuth button is currently a UI-only component. To make it functional, you'll need to:
-1. Set up Google OAuth credentials
-2. Configure the OAuth callback
-3. Implement the OAuth flow in the backend
+Google OAuth has been fully implemented and integrated with the existing authentication system. Users can now sign in with their Google accounts alongside the traditional email/password authentication.
+
+### Features
+- ✅ Google OAuth 2.0 integration
+- ✅ Automatic user creation for new Google users
+- ✅ Seamless integration with existing user management
+- ✅ Profile picture support from Google
+- ✅ Secure session management
 
 ## Notes
 

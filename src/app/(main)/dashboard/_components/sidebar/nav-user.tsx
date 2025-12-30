@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleUser, CreditCard, EllipsisVertical, LogOut, MessageSquareDot } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -13,23 +14,43 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
+import type { UserPayload } from "@/lib/auth";
 import { getInitials } from "@/lib/utils";
 import { logoutUser } from "@/server/auth-actions";
 
-export function NavUser({
-  user,
-}: {
-  readonly user: {
-    readonly name: string;
-    readonly email: string;
-    readonly avatar: string;
-  };
-}) {
+type User =
+  | UserPayload
+  | {
+      id: number;
+      email: string;
+      name?: string | null;
+      image?: string;
+    }
+  | null;
+
+export function NavUser({ user }: { readonly user: User }) {
   const { isMobile } = useSidebar();
+  const { data: session } = useSession();
+
+  // Use NextAuth session if available, otherwise use custom auth user
+  const currentUser = session?.user || user;
 
   const handleLogout = async () => {
-    await logoutUser();
+    if (session) {
+      // NextAuth logout
+      await signOut({ callbackUrl: "/auth" });
+    } else {
+      // Custom auth logout
+      await logoutUser();
+    }
   };
+
+  if (!currentUser) {
+    return null;
+  }
+
+  // Type guard to check if user has image property
+  const hasImage = (u: any): u is { image?: string } => "image" in u;
 
   return (
     <SidebarMenu>
@@ -41,12 +62,15 @@ export function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
-                <AvatarImage src={user.avatar || undefined} alt={user.name} />
-                <AvatarFallback className="rounded-lg">{getInitials(user.name)}</AvatarFallback>
+                <AvatarImage
+                  src={hasImage(currentUser) ? currentUser.image || undefined : undefined}
+                  alt={currentUser.name || "User"}
+                />
+                <AvatarFallback className="rounded-lg">{getInitials(currentUser.name || "Guest User")}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-muted-foreground text-xs">{user.email}</span>
+                <span className="truncate font-medium">{currentUser.name || "Guest User"}</span>
+                <span className="truncate text-muted-foreground text-xs">{currentUser.email}</span>
               </div>
               <EllipsisVertical className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -60,12 +84,17 @@ export function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar || undefined} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">{getInitials(user.name)}</AvatarFallback>
+                  <AvatarImage
+                    src={hasImage(currentUser) ? currentUser.image || undefined : undefined}
+                    alt={currentUser.name || "User"}
+                  />
+                  <AvatarFallback className="rounded-lg">
+                    {getInitials(currentUser.name || "Guest User")}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="truncate text-muted-foreground text-xs">{user.email}</span>
+                  <span className="truncate font-medium">{currentUser.name || "Guest User"}</span>
+                  <span className="truncate text-muted-foreground text-xs">{currentUser.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>

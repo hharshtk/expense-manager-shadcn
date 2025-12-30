@@ -1,13 +1,17 @@
+import { getCurrentUser } from "@/lib/auth";
+
 import { AccountOverview } from "./_components/account-overview";
 import { CurrencyExchange } from "./_components/currency-exchange";
 import { ExpenseSummary } from "./_components/expense-summary";
 import { FinancialOverview } from "./_components/financial-overview";
 
-export default function Page() {
+export default async function Page() {
+  const user = await getCurrentUser();
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="flex flex-col gap-4 lg:col-span-1">
-        <AccountOverview />
+        <AccountOverview user={user} />
       </div>
 
       <div className="flex flex-col gap-4 lg:col-span-2">

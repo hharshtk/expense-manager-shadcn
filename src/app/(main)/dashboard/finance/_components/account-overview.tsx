@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { UserPayload } from "@/lib/auth";
 import { cn, formatCurrency } from "@/lib/utils";
 
 function ChipSVG() {
@@ -64,7 +65,11 @@ const recentPayments = [
   },
 ];
 
-export function AccountOverview() {
+interface AccountOverviewProps {
+  user: UserPayload | null;
+}
+
+export function AccountOverview({ user }: AccountOverviewProps) {
   return (
     <Card className="shadow-xs">
       <CardHeader className="items-center">
@@ -93,7 +98,7 @@ export function AccountOverview() {
                 <div className="-translate-y-1/2 absolute top-1/2 w-full">
                   <div className="flex items-end justify-between px-6">
                     <span className="font-medium font-mono text-accent text-lg uppercase leading-none tracking-wide">
-                      Arham Khan
+                      {user?.name || "Guest User"}
                     </span>
                     <ChipSVG />
                   </div>
