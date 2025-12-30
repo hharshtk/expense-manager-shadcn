@@ -2,10 +2,12 @@
 
 import { redirect } from "next/navigation";
 
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { clearAuthCookie, generateToken, hashPassword, setAuthCookie, verifyPassword } from "@/lib/auth";
-import { pool } from "@/lib/db";
+import { db } from "@/lib/db";
+import { users } from "@/lib/schema";
 
 // Validation schemas
 const loginSchema = z.object({
@@ -36,19 +38,19 @@ export async function loginUser(data: z.infer<typeof loginSchema>): Promise<Auth
     const validatedData = loginSchema.parse(data);
 
     // Find user by email
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [validatedData.email]);
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, validatedData.email),
+    });
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return {
         success: false,
         message: "Invalid email or password.",
       };
     }
 
-    const user = result.rows[0];
-
     // Verify password
-    const isValidPassword = await verifyPassword(validatedData.password, user.password_hash);
+    const isValidPassword = user.passwordHash ? await verifyPassword(validatedData.password, user.passwordHash) : false;
 
     if (!isValidPassword) {
       return {
@@ -61,7 +63,7 @@ export async function loginUser(data: z.infer<typeof loginSchema>): Promise<Auth
     const token = await generateToken({
       id: user.id,
       email: user.email,
-      name: user.name,
+      name: user.name ?? undefined,
     });
 
     // Set auth cookie
@@ -108,9 +110,11 @@ export async function registerUser(data: z.infer<typeof registerSchema>): Promis
     }
 
     // Check if user already exists
-    const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [validatedData.email]);
+    const existingUser = await db.query.users.findFirst({
+      where: eq(users.email, validatedData.email),
+    });
 
-    if (existingUser.rows.length > 0) {
+    if (existingUser) {
       return {
         success: false,
         message: "Email already registered.",
@@ -124,18 +128,20 @@ export async function registerUser(data: z.infer<typeof registerSchema>): Promis
     const passwordHash = await hashPassword(validatedData.password);
 
     // Create user
-    const result = await pool.query(
-      "INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name",
-      [validatedData.email, passwordHash, validatedData.name],
-    );
-
-    const user = result.rows[0];
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        email: validatedData.email,
+        passwordHash: passwordHash,
+        name: validatedData.name,
+      })
+      .returning({ id: users.id, email: users.email, name: users.name });
 
     // Generate JWT token
     const token = await generateToken({
-      id: user.id,
-      email: user.email,
-      name: user.name,
+      id: newUser.id,
+      email: newUser.email,
+      name: newUser.name ?? undefined,
     });
 
     // Set auth cookie

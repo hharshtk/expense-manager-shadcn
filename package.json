@@ -12,7 +12,12 @@
     "check:fix": "biome check --write",
     "prepare": "husky",
     "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts",
-    "setup:db": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/setup-db.ts"
+    "setup:db": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/setup-db.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/seed-db.ts"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
@@ -34,6 +39,8 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.8",
+    "drizzle-orm": "^0.45.1",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "jose": "^6.1.3",

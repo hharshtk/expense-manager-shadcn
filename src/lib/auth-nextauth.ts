@@ -1,8 +1,9 @@
+import { eq } from "drizzle-orm";
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
-import { generateToken, hashPassword } from "@/lib/auth";
-import { pool as db } from "@/lib/db";
+import { db } from "@/lib/db";
+import { users } from "@/lib/schema";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -23,18 +24,25 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === "google") {
         try {
           // Check if user exists
-          const existingUser = await db.query("SELECT id, email FROM users WHERE email = $1", [user.email]);
+          const existingUser = await db.query.users.findFirst({
+            where: eq(users.email, user.email!),
+            columns: { id: true, email: true },
+          });
 
-          if (existingUser.rows.length === 0) {
+          if (!existingUser) {
             console.log("[NextAuth] Creating new user:", user.email);
             // Create new user
-            const result = await db.query(
-              "INSERT INTO users (email, name, password_hash, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id",
-              [user.email, user.name, ""], // Empty password for OAuth users
-            );
-            user.id = result.rows[0].id.toString();
+            const [newUser] = await db
+              .insert(users)
+              .values({
+                email: user.email!,
+                name: user.name,
+                passwordHash: "", // Empty password for OAuth users
+              })
+              .returning({ id: users.id });
+            user.id = newUser.id.toString();
           } else {
-            user.id = existingUser.rows[0].id.toString();
+            user.id = existingUser.id.toString();
           }
 
           return true;

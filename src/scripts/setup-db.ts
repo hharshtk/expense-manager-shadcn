@@ -1,4 +1,6 @@
 import { config } from "dotenv";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 
 // Load environment variables
@@ -12,58 +14,31 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+const db = drizzle(pool);
+
 async function setupDatabase() {
   try {
-    console.log("🔧 Setting up database...");
+    console.log("🔧 Running database migrations...");
 
-    // Create users table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255),
-        name VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+    // Run migrations from the drizzle folder
+    await migrate(db, { migrationsFolder: "./drizzle" });
 
-    console.log("✅ Users table created successfully");
-
-    // Make password_hash nullable for OAuth users
-    await pool
-      .query(`
-      ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
-    `)
-      .catch(() => {
-        // Ignore error if column is already nullable
-      });
-
-    console.log("✅ Users table updated for OAuth support");
-
-    // Create sessions table for managing user sessions
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token VARCHAR(500) UNIQUE NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    console.log("✅ Sessions table created successfully");
-
-    // Create index for faster lookups
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
-    `);
-
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-    `);
-
-    console.log("✅ Database setup completed successfully!");
+    console.log("✅ Database migrations completed successfully!");
+    console.log("");
+    console.log("📋 Available tables:");
+    console.log("   - users (user accounts with auth support)");
+    console.log("   - oauth_accounts (OAuth provider links)");
+    console.log("   - sessions (user sessions)");
+    console.log("   - financial_accounts (bank accounts, wallets, etc.)");
+    console.log("   - categories (expense/income categories)");
+    console.log("   - payment_methods (payment methods)");
+    console.log("   - expenses (expense/income transactions)");
+    console.log("   - budgets (budget tracking)");
+    console.log("   - tags (custom tags)");
+    console.log("   - expense_tags (expense-tag relationships)");
+    console.log("   - savings_goals (savings targets)");
+    console.log("");
+    console.log("🚀 Your expense management database is ready!");
   } catch (error) {
     console.error("❌ Error setting up database:", error);
     throw error;
