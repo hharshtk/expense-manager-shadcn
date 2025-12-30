@@ -26,7 +26,6 @@ const FormSchema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -37,19 +36,8 @@ export function LoginForm() {
     },
   });
 
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    try {
-      const result = await signIn("google", { callbackUrl: "/dashboard" });
-      if (result?.error) {
-        toast.error("Google sign-in failed. Please try again.");
-      }
-    } catch (error) {
-      toast.error("An unexpected error occurred. Please try again.");
-      console.error("Google sign-in error:", error);
-    } finally {
-      setIsGoogleLoading(false);
-    }
+  const handleGoogleSignIn = () => {
+    signIn("google", { callbackUrl: "/dashboard" });
   };
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
@@ -84,14 +72,8 @@ export function LoginForm() {
 
   return (
     <div className="space-y-4">
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        onClick={handleGoogleSignIn}
-        disabled={isGoogleLoading}
-      >
-        {isGoogleLoading ? "Signing in..." : "Continue with Google"}
+      <Button type="button" variant="outline" className="w-full" onClick={handleGoogleSignIn}>
+        Continue with Google
       </Button>
 
       <div className="relative">
