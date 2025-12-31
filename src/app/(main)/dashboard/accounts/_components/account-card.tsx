@@ -26,7 +26,9 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getCurrencySymbol } from "@/lib/currency";
 import type { FinancialAccount } from "@/lib/schema";
+import type { UserSettings } from "@/server/user-settings-actions";
 
 import { deleteAccount } from "../_actions/account-actions";
 import { AdjustBalanceDialog } from "./adjust-balance-dialog";
@@ -56,17 +58,19 @@ const accountTypeLabels = {
 
 type AccountCardProps = {
     account: FinancialAccount;
+    userSettings: UserSettings;
     onUpdate: (account: FinancialAccount) => void;
     onDelete: (accountId: number) => void;
 };
 
-export function AccountCard({ account, onUpdate, onDelete }: AccountCardProps) {
+export function AccountCard({ account, userSettings, onUpdate, onDelete }: AccountCardProps) {
     const [editDialogOpen, setEditDialogOpen] = React.useState(false);
     const [adjustDialogOpen, setAdjustDialogOpen] = React.useState(false);
     const [isDeleting, setIsDeleting] = React.useState(false);
 
     const balance = Number.parseFloat(account.currentBalance || "0");
     const Icon = accountTypeIcons[account.type] || Wallet;
+    const currencySymbol = getCurrencySymbol(account.currency || userSettings.defaultCurrency);
 
     const handleDelete = async () => {
         if (!confirm(`Are you sure you want to delete "${account.name}"? This action cannot be undone.`)) {
@@ -136,7 +140,7 @@ export function AccountCard({ account, onUpdate, onDelete }: AccountCardProps) {
                     <div className="space-y-2">
                         <div>
                             <div className="text-2xl font-bold">
-                                {account.currency} {balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {currencySymbol}{balance.toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <p className="text-xs text-muted-foreground">Current Balance</p>
                         </div>

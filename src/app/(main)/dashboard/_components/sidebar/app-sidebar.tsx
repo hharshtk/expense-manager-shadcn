@@ -13,6 +13,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { APP_CONFIG } from "@/config/app-config";
 import type { UserPayload } from "@/lib/auth";
@@ -21,15 +22,16 @@ import { usePreferencesStore } from "@/stores/preferences/preferences-provider";
 
 import { NavMain } from "./nav-main";
 import { NavUser } from "./nav-user";
+import { SettingsDialog } from "./settings-dialog";
 
 type User =
   | UserPayload
   | {
-      id: number;
-      email: string;
-      name?: string | null;
-      image?: string;
-    }
+    id: number;
+    email: string;
+    name?: string | null;
+    image?: string;
+  }
   | null;
 
 const _data = {
@@ -101,6 +103,12 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SettingsDialog />
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <SidebarSeparator />
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>

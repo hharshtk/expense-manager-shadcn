@@ -39,6 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDataTableInstance } from "@/hooks/use-data-table-instance";
 import { cn } from "@/lib/utils";
+import type { UserSettings } from "@/server/user-settings-actions";
 
 import { createExpense, deleteExpenses } from "../_actions/expense-actions";
 import { getAccounts } from "../../accounts/_actions/account-actions";
@@ -247,7 +248,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-export function DataTable({ data: initialData }: { data: Transaction[] }) {
+export function DataTable({ data: initialData, userSettings }: { data: Transaction[]; userSettings: UserSettings }) {
   const [data, setData] = React.useState(() => initialData);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [activeView, setActiveView] = React.useState<"all" | "income" | "expense">("all");
@@ -285,8 +286,8 @@ export function DataTable({ data: initialData }: { data: Transaction[] }) {
   }, []);
 
   const columns = React.useMemo(
-    () => createColumns({ onDelete: handleDeleteRequest, onUpdate: handleUpdate }),
-    [handleDeleteRequest, handleUpdate],
+    () => createColumns({ onDelete: handleDeleteRequest, onUpdate: handleUpdate, userSettings }),
+    [handleDeleteRequest, handleUpdate, userSettings],
   );
 
   const filteredData = React.useMemo(() => {

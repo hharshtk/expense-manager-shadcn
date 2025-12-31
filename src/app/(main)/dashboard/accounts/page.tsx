@@ -1,10 +1,19 @@
+import { getUserSettings } from "@/server/user-settings-actions";
+
 import { getAccounts } from "./_actions/account-actions";
 import { AccountsGrid } from "./_components/accounts-grid";
 import { AccountSummaryCards } from "./_components/account-summary-cards";
 
 export default async function AccountsPage() {
-    const result = await getAccounts();
-    const accounts = result.success ? result.data : [];
+    const [accountsResult, settingsResult] = await Promise.all([
+        getAccounts(),
+        getUserSettings(),
+    ]);
+
+    const accounts = accountsResult.success ? accountsResult.data : [];
+    const userSettings = settingsResult.success
+        ? settingsResult.data
+        : { defaultCurrency: "USD", locale: "en-US", timezone: "UTC", dateFormat: "MM/DD/YYYY" };
 
     // Calculate summary from accounts
     const totalBalance = accounts
@@ -26,8 +35,8 @@ export default async function AccountsPage() {
                 </div>
             </div>
 
-            <AccountSummaryCards summary={summary} />
-            <AccountsGrid accounts={accounts} />
+            <AccountSummaryCards summary={summary} userSettings={userSettings} />
+            <AccountsGrid accounts={accounts} userSettings={userSettings} />
         </div>
     );
 }

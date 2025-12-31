@@ -6,15 +6,17 @@ import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { FinancialAccount } from "@/lib/schema";
+import type { UserSettings } from "@/server/user-settings-actions";
 
 import { AccountCard } from "./account-card";
 import { CreateAccountDialog } from "./create-account-dialog";
 
 type AccountsGridProps = {
     accounts: FinancialAccount[];
+    userSettings: UserSettings;
 };
 
-export function AccountsGrid({ accounts: initialAccounts }: AccountsGridProps) {
+export function AccountsGrid({ accounts: initialAccounts, userSettings }: AccountsGridProps) {
     const [accounts, setAccounts] = React.useState(initialAccounts);
     const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
 
@@ -65,6 +67,7 @@ export function AccountsGrid({ accounts: initialAccounts }: AccountsGridProps) {
                     <AccountCard
                         key={account.id}
                         account={account}
+                        userSettings={userSettings}
                         onUpdate={handleAccountUpdated}
                         onDelete={handleAccountDeleted}
                     />
@@ -73,3 +76,4 @@ export function AccountsGrid({ accounts: initialAccounts }: AccountsGridProps) {
         </div>
     );
 }
+

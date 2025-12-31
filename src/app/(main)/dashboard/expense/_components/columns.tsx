@@ -12,22 +12,30 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getCurrencySymbol } from "@/lib/currency";
+import type { UserSettings } from "@/server/user-settings-actions";
 
 import type { Transaction } from "./schema";
 import { TableCellViewer } from "./table-cell-viewer";
 
-const currency = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
-
 type ColumnActions = {
   onDelete: (id: number) => void;
   onUpdate: (item: Transaction) => void;
+  userSettings: UserSettings;
 };
 
-export function createColumns({ onDelete, onUpdate }: ColumnActions): ColumnDef<Transaction>[] {
+export function createColumns({ onDelete, onUpdate, userSettings }: ColumnActions): ColumnDef<Transaction>[] {
+  const currencySymbol = getCurrencySymbol(userSettings.defaultCurrency);
+
+  const formatCurrencyValue = (amount: number) => {
+    const formattedNumber = new Intl.NumberFormat(userSettings.locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(amount));
+    const sign = amount < 0 ? "-" : "";
+    return `${sign}${currencySymbol}${formattedNumber}`;
+  };
+
   return [
     {
       id: "select",
@@ -84,7 +92,7 @@ export function createColumns({ onDelete, onUpdate }: ColumnActions): ColumnDef<
             ) : (
               <ArrowUpRight className="size-4 text-red-600 dark:text-red-400" />
             )}
-            {currency.format(signedAmount)}
+            {formatCurrencyValue(signedAmount)}
           </div>
         );
       },
