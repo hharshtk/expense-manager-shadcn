@@ -64,6 +64,8 @@ export function useDataTableInstance<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    // Prevent automatic pagination reset during render to avoid state updates before mount
+    autoResetPageIndex: false,
   });
 
   return table;
