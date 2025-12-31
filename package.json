@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:deploy": "drizzle-kit push --no-prompt && next build",
+    "build:deploy": "echo 'yes' | drizzle-kit push && next build",
     "start": "next start",
     "lint": "biome lint",
     "format": "biome format --write",
