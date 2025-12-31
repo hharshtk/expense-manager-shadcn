@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:deploy": "npm run db:push && npm run build",
+    "build:deploy": "npm run db:push --no-prompt && npm run build",
     "start": "next start",
     "lint": "biome lint",
     "format": "biome format --write",
