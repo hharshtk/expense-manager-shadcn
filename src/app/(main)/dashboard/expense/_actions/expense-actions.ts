@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth-nextauth";
@@ -17,6 +17,7 @@ export type ExpenseFormData = {
   date: string;
   notes?: string;
   isConfirmed?: boolean;
+  accountId?: number | null;
 };
 
 export type ActionResult<T = unknown> = { success: true; data: T } | { success: false; error: string };
@@ -57,10 +58,28 @@ export async function createExpense(formData: ExpenseFormData): Promise<ActionRe
         date: formData.date,
         notes: formData.notes || null,
         isConfirmed: formData.isConfirmed ?? true,
+        financialAccountId: formData.accountId || null,
       })
       .returning();
 
+    // Update account balance if an account is linked
+    if (formData.accountId) {
+      const amountValue = Number.parseFloat(formData.amount);
+      if (!Number.isNaN(amountValue)) {
+        // For expenses, decrease the balance; for income, increase the balance
+        const balanceChange = formData.type === "expense" ? -amountValue : amountValue;
+
+        await db.execute(
+          sql`UPDATE financial_accounts 
+              SET current_balance = CAST(current_balance AS DECIMAL) + ${balanceChange},
+                  updated_at = NOW()
+              WHERE id = ${formData.accountId} AND user_id = ${userId}`,
+        );
+      }
+    }
+
     revalidatePath("/dashboard/expense");
+    revalidatePath("/dashboard/accounts");
     return { success: true, data: newExpense };
   } catch (error) {
     console.error("Failed to create expense:", error);

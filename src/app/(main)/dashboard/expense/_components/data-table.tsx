@@ -33,6 +33,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 import { createExpense, deleteExpenses } from "../_actions/expense-actions";
+import { getAccounts } from "../../accounts/_actions/account-actions";
+import { AccountSelector } from "../../accounts/_components/account-selector";
 import { createColumns } from "./columns";
 import type { Transaction } from "./schema";
 
@@ -43,12 +45,14 @@ type ExpenseFormState = {
   date: string;
   notes: string;
   isConfirmed: boolean;
+  accountId: number | null;
 };
 
 function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [accounts, setAccounts] = React.useState<Array<{ id: number; name: string; type: string; color: string | null; currentBalance: string | null; currency: string }>>([]);
   const [form, setForm] = React.useState<ExpenseFormState>(() => ({
     date: new Date().toISOString().slice(0, 10),
     description: "",
@@ -56,7 +60,19 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
     amount: "",
     notes: "",
     isConfirmed: true,
+    accountId: null,
   }));
+
+  // Fetch accounts when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      getAccounts().then((result) => {
+        if (result.success) {
+          setAccounts(result.data);
+        }
+      });
+    }
+  }, [open]);
 
   const canSubmit = form.description.trim().length > 0 && form.amount.trim().length > 0 && !isSubmitting;
 
@@ -70,6 +86,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
         date: form.date,
         notes: form.notes || undefined,
         isConfirmed: form.isConfirmed,
+        accountId: form.accountId,
       });
 
       if (result.success) {
@@ -82,6 +99,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
           amount: "",
           notes: "",
           isConfirmed: true,
+          accountId: null,
         });
         onSuccess();
       } else {
@@ -187,6 +205,14 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
                 placeholder="0.00"
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            <Label htmlFor="tx-account">Account</Label>
+            <AccountSelector
+              accounts={accounts}
+              value={form.accountId}
+              onValueChange={(accountId) => setForm((prev) => ({ ...prev, accountId }))}
+            />
           </div>
           <div className="flex flex-col gap-3">
             <Label htmlFor="tx-notes">Notes</Label>
