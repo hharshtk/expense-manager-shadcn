@@ -48,7 +48,6 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
     description: item.description || "",
     date: item.date,
     notes: item.notes || "",
-    isConfirmed: item.isConfirmed ?? true,
   });
 
   React.useEffect(() => {
@@ -58,7 +57,6 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
       description: item.description || "",
       date: item.date,
       notes: item.notes || "",
-      isConfirmed: item.isConfirmed ?? true,
     });
   }, [item]);
 
@@ -76,7 +74,7 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
         description: form.description,
         date: form.date,
         notes: form.notes || undefined,
-        isConfirmed: form.isConfirmed,
+        isConfirmed: true,
       });
 
       if (result.success) {
@@ -104,7 +102,7 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
         <DrawerHeader className="gap-1">
           <DrawerTitle>{item.description || "Transaction"}</DrawerTitle>
           <DrawerDescription>
-            {item.type === "income" ? "Income" : "Expense"} · {item.date} · {currency.format(signedAmount)}
+            {item.type === "income" ? "Income" : "Expense"} · {format(new Date(item.date), "dd-MMM-yyyy")} · {currency.format(signedAmount)}
           </DrawerDescription>
         </DrawerHeader>
         <div className="flex flex-col gap-4 overflow-y-auto px-4 text-sm">
@@ -129,37 +127,20 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="type">Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as "expense" | "income" }))}
-                >
-                  <SelectTrigger id="type" className="w-full">
-                    <SelectValue placeholder="Select a type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="income">Income</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={form.isConfirmed ? "confirmed" : "pending"}
-                  onValueChange={(value) => setForm((prev) => ({ ...prev, isConfirmed: value === "confirmed" }))}
-                >
-                  <SelectTrigger id="status" className="w-full">
-                    <SelectValue placeholder="Select a status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="type">Type</Label>
+              <Select
+                value={form.type}
+                onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as "expense" | "income" }))}
+              >
+                <SelectTrigger id="type" className="w-full">
+                  <SelectValue placeholder="Select a type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">Income</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-3">
@@ -174,7 +155,7 @@ export function TableCellViewer({ item, onUpdate }: TableCellViewerProps) {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {form.date ? format(new Date(form.date), "dd-MMM-yy") : <span>Pick a date</span>}
+                      {form.date ? format(new Date(form.date), "dd-MMM-yyyy") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">

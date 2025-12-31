@@ -4,32 +4,40 @@
 import * as React from "react";
 
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { DataTable as DataTableNew } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { DataTableViewOptions } from "@/components/data-table/data-table-view-options";
-import { withDndColumn } from "@/components/data-table/table-utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDataTableInstance } from "@/hooks/use-data-table-instance";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 import { createExpense, deleteExpenses } from "../_actions/expense-actions";
@@ -49,7 +57,6 @@ type ExpenseFormState = {
 };
 
 function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
-  const isMobile = useIsMobile();
   const [open, setOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [accounts, setAccounts] = React.useState<Array<{ id: number; name: string; type: string; color: string | null; currentBalance: string | null; currency: string }>>([]);
@@ -74,9 +81,17 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
     }
   }, [open]);
 
-  const canSubmit = form.description.trim().length > 0 && form.amount.trim().length > 0 && !isSubmitting;
+  const canSubmit = form.description.trim().length > 0 && form.amount.trim().length > 0 && form.accountId !== null && !isSubmitting;
 
   const handleSubmit = async () => {
+    if (!canSubmit) {
+      if (form.accountId === null) {
+        toast.error("Please select an account");
+        return;
+      }
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await createExpense({
@@ -85,7 +100,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
         description: form.description,
         date: form.date,
         notes: form.notes || undefined,
-        isConfirmed: form.isConfirmed,
+        isConfirmed: true,
         accountId: form.accountId,
       });
 
@@ -113,19 +128,40 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <Drawer direction={isMobile ? "bottom" : "right"} open={open} onOpenChange={setOpen}>
-      <DrawerTrigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Plus />
           <span className="hidden lg:inline">Record transaction</span>
         </Button>
-      </DrawerTrigger>
-      <DrawerContent>
-        <DrawerHeader className="gap-1">
-          <DrawerTitle>Record transaction</DrawerTitle>
-        </DrawerHeader>
-        <div className="flex flex-col gap-4 overflow-y-auto px-4 text-sm">
-          <div className="flex flex-col gap-3">
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Record Transaction</DialogTitle>
+          <DialogDescription>
+            Enter the details for your transaction.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs
+          value={form.type}
+          onValueChange={(value) => setForm(prev => ({ ...prev, type: value as "expense" | "income" }))}
+          className="w-full"
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="expense" className="flex items-center gap-2">
+              <ArrowUpRight className="size-4 text-red-600 dark:text-red-400" />
+              Expense
+            </TabsTrigger>
+            <TabsTrigger value="income" className="flex items-center gap-2">
+              <ArrowDownLeft className="size-4 text-green-600 dark:text-green-400" />
+              Income
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
             <Label htmlFor="tx-description">Description</Label>
             <Input
               id="tx-description"
@@ -135,39 +171,18 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="tx-type">Type</Label>
-              <Select
-                value={form.type}
-                onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as "expense" | "income" }))}
-              >
-                <SelectTrigger id="tx-type" className="w-full">
-                  <SelectValue placeholder="Select a type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="income">Income</SelectItem>
-                  <SelectItem value="expense">Expense</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid gap-2">
+              <Label htmlFor="tx-amount">Amount</Label>
+              <Input
+                id="tx-amount"
+                type="number"
+                step="0.01"
+                value={form.amount}
+                onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
+                placeholder="0.00"
+              />
             </div>
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="tx-status">Status</Label>
-              <Select
-                value={form.isConfirmed ? "confirmed" : "pending"}
-                onValueChange={(value) => setForm((prev) => ({ ...prev, isConfirmed: value === "confirmed" }))}
-              >
-                <SelectTrigger id="tx-status" className="w-full">
-                  <SelectValue placeholder="Select a status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-3">
+            <div className="grid gap-2">
               <Label htmlFor="tx-date">Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -176,7 +191,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
                     className={cn("w-full justify-start text-left font-normal", !form.date && "text-muted-foreground")}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {form.date ? format(new Date(form.date), "dd-MMM-yy") : <span>Pick a date</span>}
+                    {form.date ? format(new Date(form.date), "dd-MMM-yyyy") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -194,19 +209,8 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="tx-amount">Amount</Label>
-              <Input
-                id="tx-amount"
-                type="number"
-                step="0.01"
-                value={form.amount}
-                onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
-                placeholder="0.00"
-              />
-            </div>
           </div>
-          <div className="flex flex-col gap-3">
+          <div className="grid gap-2">
             <Label htmlFor="tx-account">Account</Label>
             <AccountSelector
               accounts={accounts}
@@ -214,60 +218,76 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
               onValueChange={(accountId) => setForm((prev) => ({ ...prev, accountId }))}
             />
           </div>
-          <div className="flex flex-col gap-3">
+          <div className="grid gap-2">
             <Label htmlFor="tx-notes">Notes</Label>
             <Input
               id="tx-notes"
               value={form.notes}
               onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-              placeholder="Optional"
+              placeholder="Optional details"
             />
           </div>
         </div>
-        <DrawerFooter>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button disabled={!canSubmit} onClick={handleSubmit}>
-            {isSubmitting ? "Saving..." : "Save"}
+            {isSubmitting ? "Saving..." : "Save Transaction"}
           </Button>
-          <DrawerClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 export function DataTable({ data: initialData }: { data: Transaction[] }) {
   const [data, setData] = React.useState(() => initialData);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [activeView, setActiveView] = React.useState<"all" | "income" | "expense">("all");
 
-  const handleDelete = React.useCallback(
-    async (id: number) => {
-      const previousData = data;
-      setData((prev) => prev.filter((row) => row.id !== id));
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = React.useState<number | null>(null);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = React.useState(false);
 
-      const result = await deleteExpenses([id]);
-      if (!result.success) {
-        setData(previousData);
-        toast.error(result.error);
-      } else {
-        toast.success("Transaction deleted");
-      }
-    },
-    [data],
-  );
+  const handleDeleteRequest = React.useCallback((id: number) => {
+    setPendingDeleteId(id);
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const handleConfirmDelete = React.useCallback(async () => {
+    if (pendingDeleteId === null) return;
+
+    const previousData = data;
+    setData((prev) => prev.filter((row) => row.id !== pendingDeleteId));
+
+    const result = await deleteExpenses([pendingDeleteId]);
+    if (!result.success) {
+      setData(previousData);
+      toast.error(result.error);
+    } else {
+      toast.success("Transaction deleted");
+    }
+
+    setDeleteDialogOpen(false);
+    setPendingDeleteId(null);
+  }, [data, pendingDeleteId]);
 
   const handleUpdate = React.useCallback((updatedItem: Transaction) => {
     setData((prev) => prev.map((row) => (row.id === updatedItem.id ? updatedItem : row)));
   }, []);
 
   const columns = React.useMemo(
-    () => withDndColumn(createColumns({ onDelete: handleDelete, onUpdate: handleUpdate })),
-    [handleDelete, handleUpdate],
+    () => createColumns({ onDelete: handleDeleteRequest, onUpdate: handleUpdate }),
+    [handleDeleteRequest, handleUpdate],
   );
 
-  const table = useDataTableInstance({ data, columns, getRowId: (row) => row.id.toString() });
-  const [activeView, setActiveView] = React.useState<"all" | "income" | "expense">("all");
+  const filteredData = React.useMemo(() => {
+    if (activeView === "all") return data;
+    return data.filter((row) => row.type === activeView);
+  }, [data, activeView]);
+
+  const table = useDataTableInstance({ data: filteredData, columns, getRowId: (row) => row.id.toString() });
 
   const incomeCount = React.useMemo(() => data.filter((row) => row.type === "income").length, [data]);
   const expenseCount = React.useMemo(() => data.filter((row) => row.type === "expense").length, [data]);
@@ -275,7 +295,12 @@ export function DataTable({ data: initialData }: { data: Transaction[] }) {
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const hasSelection = selectedRows.length > 0;
 
-  const handleBulkDelete = async () => {
+  const handleBulkDeleteRequest = () => {
+    if (!hasSelection) return;
+    setBulkDeleteDialogOpen(true);
+  };
+
+  const handleConfirmBulkDelete = async () => {
     if (!hasSelection) return;
 
     setIsDeleting(true);
@@ -293,6 +318,7 @@ export function DataTable({ data: initialData }: { data: Transaction[] }) {
       toast.success(`${result.data.count} transaction(s) deleted`);
     }
     setIsDeleting(false);
+    setBulkDeleteDialogOpen(false);
   };
 
   const [isMounted, setIsMounted] = React.useState(false);
@@ -300,15 +326,6 @@ export function DataTable({ data: initialData }: { data: Transaction[] }) {
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  React.useEffect(() => {
-    if (!isMounted) return;
-
-    const typeColumn = table.getColumn("type");
-    if (!typeColumn) return;
-
-    typeColumn.setFilterValue(activeView === "all" ? undefined : activeView);
-  }, [activeView, table, isMounted]);
 
   // Sync with server data
   React.useEffect(() => {
@@ -319,55 +336,89 @@ export function DataTable({ data: initialData }: { data: Transaction[] }) {
   }, [initialData]);
 
   return (
-    <Tabs
-      value={activeView}
-      onValueChange={(value) => setActiveView(value as typeof activeView)}
-      className="w-full flex-col justify-start gap-6"
-    >
-      <div className="flex items-center justify-between">
-        <Label htmlFor="view-selector" className="sr-only">
-          View
-        </Label>
-        <Select value={activeView} onValueChange={(value) => setActiveView(value as typeof activeView)}>
-          <SelectTrigger className="flex @4xl/main:hidden w-fit" size="sm" id="view-selector">
-            <SelectValue placeholder="Select a view" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All transactions</SelectItem>
-            <SelectItem value="income">Income</SelectItem>
-            <SelectItem value="expense">Expense</SelectItem>
-          </SelectContent>
-        </Select>
-        <TabsList className="@4xl/main:flex hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:px-1">
-          <TabsTrigger value="all">All transactions</TabsTrigger>
-          <TabsTrigger value="income">
-            Income <Badge variant="secondary">{incomeCount}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="expense">
-            Expense <Badge variant="secondary">{expenseCount}</Badge>
-          </TabsTrigger>
-        </TabsList>
-        <div className="flex items-center gap-2">
-          {hasSelection && (
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={isDeleting}>
-              <Trash2 className="mr-1 size-4" />
-              Delete ({selectedRows.length})
-            </Button>
-          )}
-          <DataTableViewOptions table={table} />
-          <RecordTransactionButton
-            onSuccess={() => {
-              /* TODO: Handle success */
-            }}
-          />
+    <>
+      <Tabs
+        value={activeView}
+        onValueChange={(value) => setActiveView(value as typeof activeView)}
+        className="w-full flex-col justify-start gap-6"
+      >
+        <div className="flex items-center justify-between">
+          <Label htmlFor="view-selector" className="sr-only">
+            View
+          </Label>
+          <Select value={activeView} onValueChange={(value) => setActiveView(value as typeof activeView)}>
+            <SelectTrigger className="flex @4xl/main:hidden w-fit" size="sm" id="view-selector">
+              <SelectValue placeholder="Select a view" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All transactions</SelectItem>
+              <SelectItem value="income">Income</SelectItem>
+              <SelectItem value="expense">Expense</SelectItem>
+            </SelectContent>
+          </Select>
+          <TabsList className="@4xl/main:flex hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:px-1">
+            <TabsTrigger value="all">All transactions</TabsTrigger>
+            <TabsTrigger value="income">
+              Income <Badge variant="secondary">{incomeCount}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="expense">
+              Expense <Badge variant="secondary">{expenseCount}</Badge>
+            </TabsTrigger>
+          </TabsList>
+          <div className="flex items-center gap-2">
+            {hasSelection && (
+              <Button variant="destructive" size="sm" onClick={handleBulkDeleteRequest} disabled={isDeleting}>
+                <Trash2 className="mr-1 size-4" />
+                Delete ({selectedRows.length})
+              </Button>
+            )}
+            <DataTableViewOptions table={table} />
+            <RecordTransactionButton
+              onSuccess={() => {
+                /* TODO: Handle success */
+              }}
+            />
+          </div>
         </div>
-      </div>
-      <TabsContent value={activeView} className="relative flex flex-col gap-4 overflow-auto">
-        <div className="overflow-hidden rounded-lg border">
-          <DataTableNew dndEnabled table={table} columns={columns} onReorder={setData} />
-        </div>
-        <DataTablePagination table={table} />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value={activeView} className="relative flex flex-col gap-4 overflow-auto">
+          <div className="overflow-hidden rounded-lg border">
+            <DataTableNew table={table} columns={columns} onReorder={setData} />
+          </div>
+          <DataTablePagination table={table} />
+        </TabsContent>
+      </Tabs>
+
+      {/* Single delete confirmation dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirmation dialog */}
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transactions</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedRows.length} transaction(s)? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmBulkDelete}>Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -1,8 +1,8 @@
+import { format } from "date-fns";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowDownLeft, ArrowUpRight, CircleCheck, EllipsisVertical, Loader, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, EllipsisVertical, Trash2 } from "lucide-react";
 
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -61,34 +61,12 @@ export function createColumns({ onDelete, onUpdate }: ColumnActions): ColumnDef<
       enableSorting: false,
     },
     {
-      accessorKey: "type",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
-      cell: ({ row }) => (
-        <Badge variant="outline" className="px-1.5 text-muted-foreground">
-          {row.original.type === "income" ? <ArrowDownLeft /> : <ArrowUpRight />}
-          {row.original.type === "income" ? "Income" : "Expense"}
-        </Badge>
-      ),
-      enableSorting: false,
-    },
-    {
       accessorKey: "date",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-      cell: ({ row }) => <div className="text-muted-foreground tabular-nums">{row.original.date}</div>,
-      enableSorting: false,
-    },
-    {
-      accessorKey: "isConfirmed",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
       cell: ({ row }) => (
-        <Badge variant="outline" className="px-1.5 text-muted-foreground">
-          {row.original.isConfirmed ? (
-            <CircleCheck className="fill-green-500 stroke-border dark:fill-green-400" />
-          ) : (
-            <Loader />
-          )}
-          {row.original.isConfirmed ? "Confirmed" : "Pending"}
-        </Badge>
+        <div className="text-muted-foreground tabular-nums">
+          {format(new Date(row.original.date), "dd-MMM-yyyy")}
+        </div>
       ),
       enableSorting: false,
     },
@@ -98,7 +76,17 @@ export function createColumns({ onDelete, onUpdate }: ColumnActions): ColumnDef<
       cell: ({ row }) => {
         const amount = Number.parseFloat(row.original.amount);
         const signedAmount = row.original.type === "expense" ? -amount : amount;
-        return <div className="text-right font-medium tabular-nums">{currency.format(signedAmount)}</div>;
+        const isIncome = row.original.type === "income";
+        return (
+          <div className="flex items-center justify-end gap-1.5 font-medium tabular-nums">
+            {isIncome ? (
+              <ArrowDownLeft className="size-4 text-green-600 dark:text-green-400" />
+            ) : (
+              <ArrowUpRight className="size-4 text-red-600 dark:text-red-400" />
+            )}
+            {currency.format(signedAmount)}
+          </div>
+        );
       },
       enableSorting: false,
     },
