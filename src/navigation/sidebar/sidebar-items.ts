@@ -15,6 +15,7 @@ import {
   ReceiptText,
   ShoppingBag,
   SquareArrowUpRight,
+  Tags,
   Users,
   Wallet,
 } from "lucide-react";
@@ -73,6 +74,11 @@ export const sidebarItems: NavGroup[] = [
         title: "Expense",
         url: "/dashboard/expense",
         icon: ReceiptText,
+      },
+      {
+        title: "Categories",
+        url: "/dashboard/categories",
+        icon: Tags,
       },
     ],
   },

@@ -27,7 +27,15 @@ export const transactionSchema = z.object({
   updatedAt: z.date(),
 });
 
-export type Transaction = z.infer<typeof transactionSchema>;
+// Extended Transaction type to include joined category data
+export type Transaction = z.infer<typeof transactionSchema> & {
+  category: {
+    id: number;
+    name: string;
+    icon: string | null;
+    color: string | null;
+  } | null;
+};
 
 // Form schema for creating/updating expenses
 export const expenseFormSchema = z.object({

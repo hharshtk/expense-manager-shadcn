@@ -10,6 +10,16 @@ import { toast } from "sonner";
 import { DataTable as DataTableNew } from "@/components/data-table/data-table";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { DataTableViewOptions } from "@/components/data-table/data-table-view-options";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { icons } from "@/components/ui/icon-picker";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,9 +52,11 @@ import { cn } from "@/lib/utils";
 import type { UserSettings } from "@/server/user-settings-actions";
 
 import { createExpense, deleteExpenses } from "../_actions/expense-actions";
+import { getCategories } from "@/actions/categories";
 import { getAccounts } from "../../accounts/_actions/account-actions";
 import { AccountSelector } from "../../accounts/_components/account-selector";
 import { createColumns } from "./columns";
+import { TransactionSheet } from "./transaction-sheet";
 import type { Transaction } from "./schema";
 
 type ExpenseFormState = {
@@ -55,15 +67,21 @@ type ExpenseFormState = {
   notes: string;
   isConfirmed: boolean;
   accountId: number | null;
+  category: string;
 };
 
 function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [accounts, setAccounts] = React.useState<Array<{ id: number; name: string; type: string; color: string | null; currentBalance: string | null; currency: string; isDefault: boolean | null }>>([]);
+  // Define a type for categories that matches what the UI expects
+  type CategoryOption = { id: number; name: string; type: "expense" | "income"; icon: string | null; color: string | null; subcategories?: CategoryOption[] };
+  const [categories, setCategories] = React.useState<CategoryOption[]>([]);
+
   const [form, setForm] = React.useState<ExpenseFormState>(() => ({
     date: new Date().toISOString().slice(0, 10),
     description: "",
+    category: "",
     type: "expense",
     amount: "",
     notes: "",
@@ -71,20 +89,25 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
     accountId: null,
   }));
 
-  // Fetch accounts when dialog opens and auto-select default account
+  // Fetch accounts and categories when dialog opens
   React.useEffect(() => {
     if (open) {
-      getAccounts().then((result) => {
-        if (result.success) {
-          setAccounts(result.data);
+      Promise.all([getAccounts(), getCategories()]).then(([accountsResult, categoriesResult]) => {
+        if (accountsResult.success) {
+          setAccounts(accountsResult.data);
           // Auto-select the default Cash account if no account is selected
           if (form.accountId === null) {
-            const defaultAccount = result.data.find((acc) => acc.isDefault);
+            const defaultAccount = accountsResult.data.find((acc) => acc.isDefault);
             if (defaultAccount) {
               setForm((prev) => ({ ...prev, accountId: defaultAccount.id }));
             }
           }
         }
+        // categoriesResult is the data directly (it's not wrapped in success/data object based on my previous impl of getCategories)
+        // Wait, let's check getCategories return type. It returns rootCategories which is an array.
+        // It throws error if unauthorized, but doesn't return {success, data} wrapper? 
+        // Checking src/actions/categories.ts: Yes, it returns rootCategories directly.
+        setCategories(categoriesResult);
       });
     }
   }, [open]);
@@ -106,6 +129,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
         type: form.type,
         amount: form.amount,
         description: form.description,
+        category: form.category,
         date: form.date,
         notes: form.notes || undefined,
         isConfirmed: true,
@@ -118,6 +142,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
         setForm({
           date: new Date().toISOString().slice(0, 10),
           description: "",
+          category: "",
           type: "expense",
           amount: "",
           notes: "",
@@ -218,6 +243,103 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
               </Popover>
             </div>
           </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="tx-category">Category</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className={cn(
+                    "w-full justify-between font-normal",
+                    !form.category && "text-muted-foreground"
+                  )}
+                >
+                  {form.category
+                    ? (() => {
+                      const catId = Number.parseInt(form.category);
+                      const findCategory = (id: number) => {
+                        for (const parent of categories) {
+                          if (parent.id === id) return parent;
+                          if (parent.subcategories) {
+                            const sub = parent.subcategories.find((s) => s.id === id);
+                            if (sub) return sub;
+                          }
+                        }
+                        return null;
+                      };
+                      const cat = findCategory(catId);
+                      return cat ? (
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const Icon = cat.icon && icons[cat.icon as keyof typeof icons] ? icons[cat.icon as keyof typeof icons] : null;
+                            return Icon ? <Icon className="size-4 text-muted-foreground" /> : null;
+                          })()}
+                          <span>{cat.name}</span>
+                        </div>
+                      ) : "Select category";
+                    })()
+                    : "Select category"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search category..." />
+                  <CommandList className="max-h-[300px] overflow-y-auto">
+                    <CommandEmpty>No category found.</CommandEmpty>
+                    {categories
+                      .filter(c => c.type === form.type)
+                      .map((parent) => {
+                        const Icon = parent.icon && icons[parent.icon as keyof typeof icons] ? icons[parent.icon as keyof typeof icons] : null;
+                        return (
+                          <CommandGroup key={parent.id}>
+                            <CommandItem
+                              value={parent.name} // Search by name
+                              onSelect={() => {
+                                setForm((prev) => ({ ...prev, category: parent.id.toString() }));
+                              }}
+                              className="font-medium"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  form.category === parent.id.toString() ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {Icon ? <Icon className="mr-2 size-4 text-muted-foreground" /> : null}
+                              {parent.name}
+                            </CommandItem>
+                            {parent.subcategories?.map((sub) => {
+                              const SubIcon = sub.icon && icons[sub.icon as keyof typeof icons] ? icons[sub.icon as keyof typeof icons] : null;
+                              return (
+                                <CommandItem
+                                  key={sub.id}
+                                  value={sub.name}
+                                  onSelect={() => {
+                                    setForm((prev) => ({ ...prev, category: sub.id.toString() }));
+                                  }}
+                                  className="pl-8"
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      form.category === sub.id.toString() ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {SubIcon ? <SubIcon className="mr-2 size-4 text-muted-foreground" /> : null}
+                                  {sub.name}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        )
+                      })}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="tx-account">Account</Label>
             <AccountSelector
@@ -258,6 +380,10 @@ export function DataTable({ data: initialData, userSettings }: { data: Transacti
   const [pendingDeleteId, setPendingDeleteId] = React.useState<number | null>(null);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = React.useState(false);
 
+  // Edit sheet state
+  const [selectedTransaction, setSelectedTransaction] = React.useState<Transaction | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+
   const handleDeleteRequest = React.useCallback((id: number) => {
     setPendingDeleteId(id);
     setDeleteDialogOpen(true);
@@ -285,9 +411,14 @@ export function DataTable({ data: initialData, userSettings }: { data: Transacti
     setData((prev) => prev.map((row) => (row.id === updatedItem.id ? updatedItem : row)));
   }, []);
 
+  const handleEdit = React.useCallback((item: Transaction) => {
+    setSelectedTransaction(item);
+    setSheetOpen(true);
+  }, []);
+
   const columns = React.useMemo(
-    () => createColumns({ onDelete: handleDeleteRequest, onUpdate: handleUpdate, userSettings }),
-    [handleDeleteRequest, handleUpdate, userSettings],
+    () => createColumns({ onDelete: handleDeleteRequest, onUpdate: handleUpdate, onEdit: handleEdit, userSettings }),
+    [handleDeleteRequest, handleUpdate, handleEdit, userSettings],
   );
 
   const filteredData = React.useMemo(() => {
@@ -395,6 +526,14 @@ export function DataTable({ data: initialData, userSettings }: { data: Transacti
           <DataTablePagination table={table} />
         </TabsContent>
       </Tabs>
+
+      <TransactionSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        transaction={selectedTransaction}
+        onUpdate={handleUpdate}
+        userSettings={userSettings}
+      />
 
       {/* Single delete confirmation dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

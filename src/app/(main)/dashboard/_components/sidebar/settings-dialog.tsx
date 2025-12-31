@@ -18,7 +18,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getUserSettings, updateUserSettings, type UserSettings } from "@/server/user-settings-actions";
 
 const currencies = [
@@ -117,17 +118,30 @@ export function SettingsDialog() {
         setIsSubmitting(false);
     };
 
+    const { state, isMobile } = useSidebar();
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <SidebarMenuButton
-                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                    tooltip="Settings"
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                        <SidebarMenuButton
+                            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                        >
+                            <Settings className="size-4" />
+                            <span>Settings</span>
+                        </SidebarMenuButton>
+                    </DialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent
+                    side="right"
+                    align="center"
+                    hidden={state !== "collapsed" || isMobile}
                 >
-                    <Settings className="size-4" />
-                    <span>Settings</span>
-                </SidebarMenuButton>
-            </DialogTrigger>
+                    Settings
+                </TooltipContent>
+            </Tooltip>
+            {/* DialogContent ... */}
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>

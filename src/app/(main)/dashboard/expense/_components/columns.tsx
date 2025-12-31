@@ -13,18 +13,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getCurrencySymbol } from "@/lib/currency";
+import { icons } from "@/components/ui/icon-picker";
 import type { UserSettings } from "@/server/user-settings-actions";
 
 import type { Transaction } from "./schema";
-import { TableCellViewer } from "./table-cell-viewer";
 
 type ColumnActions = {
   onDelete: (id: number) => void;
   onUpdate: (item: Transaction) => void;
+  onEdit: (item: Transaction) => void;
   userSettings: UserSettings;
 };
 
-export function createColumns({ onDelete, onUpdate, userSettings }: ColumnActions): ColumnDef<Transaction>[] {
+export function createColumns({ onDelete, onUpdate, onEdit, userSettings }: ColumnActions): ColumnDef<Transaction>[] {
   const currencySymbol = getCurrencySymbol(userSettings.defaultCurrency);
 
   const formatCurrencyValue = (amount: number) => {
@@ -61,10 +62,42 @@ export function createColumns({ onDelete, onUpdate, userSettings }: ColumnAction
       enableHiding: false,
     },
     {
+      accessorKey: "category",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Category" />,
+      cell: ({ row }) => {
+        const category = row.original.category;
+        const Icon = category?.icon && icons[category.icon as keyof typeof icons]
+          ? icons[category.icon as keyof typeof icons]
+          : null;
+
+        return (
+          <div className="flex items-center gap-2">
+            {category ? (
+              <>
+                {Icon ? <Icon className="size-4 text-muted-foreground" /> : null}
+                <span className="capitalize">{category.name}</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Uncategorized</span>
+            )}
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
+    {
       accessorKey: "description",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
       cell: ({ row }) => {
-        return <TableCellViewer key={row.original.id} item={row.original} onUpdate={onUpdate} />;
+        return (
+          <Button
+            variant="link"
+            className="w-fit px-0 text-left text-foreground"
+            onClick={() => onEdit(row.original)}
+          >
+            {row.original.description || "No description"}
+          </Button>
+        );
       },
       enableSorting: false,
     },
@@ -87,12 +120,12 @@ export function createColumns({ onDelete, onUpdate, userSettings }: ColumnAction
         const isIncome = row.original.type === "income";
         return (
           <div className="flex items-center justify-end gap-1.5 font-medium tabular-nums">
+            {formatCurrencyValue(signedAmount)}
             {isIncome ? (
               <ArrowDownLeft className="size-4 text-green-600 dark:text-green-400" />
             ) : (
               <ArrowUpRight className="size-4 text-red-600 dark:text-red-400" />
             )}
-            {formatCurrencyValue(signedAmount)}
           </div>
         );
       },
@@ -113,7 +146,7 @@ export function createColumns({ onDelete, onUpdate, userSettings }: ColumnAction
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">
-            <DropdownMenuItem>View details</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEdit(row.original)}>View details</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => onDelete(row.original.id)}>
               <Trash2 className="mr-2 size-4" />

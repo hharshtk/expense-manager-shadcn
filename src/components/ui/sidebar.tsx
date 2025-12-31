@@ -495,7 +495,11 @@ const sidebarMenuButtonVariants = cva(
   }
 )
 
-function SidebarMenuButton({
+const SidebarMenuButton = React.forwardRef<HTMLButtonElement, React.ComponentProps<"button"> & {
+  asChild?: boolean
+  isActive?: boolean
+  tooltip?: string | React.ComponentProps<typeof TooltipContent>
+} & VariantProps<typeof sidebarMenuButtonVariants>>(({
   asChild = false,
   isActive = false,
   variant = "default",
@@ -503,11 +507,7 @@ function SidebarMenuButton({
   tooltip,
   className,
   ...props
-}: React.ComponentProps<"button"> & {
-  asChild?: boolean
-  isActive?: boolean
-  tooltip?: string | React.ComponentProps<typeof TooltipContent>
-} & VariantProps<typeof sidebarMenuButtonVariants>) {
+}, ref) => {
   const Comp = asChild ? SlotPrimitive.Slot : "button"
   const { isMobile, state } = useSidebar()
 
@@ -518,6 +518,7 @@ function SidebarMenuButton({
       data-size={size}
       data-active={isActive}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      ref={ref}
       {...props}
     />
   )
@@ -543,7 +544,8 @@ function SidebarMenuButton({
       />
     </Tooltip>
   )
-}
+})
+SidebarMenuButton.displayName = "SidebarMenuButton"
 
 function SidebarMenuAction({
   className,
@@ -569,7 +571,7 @@ function SidebarMenuAction({
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
+        "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
         className
       )}
       {...props}
@@ -666,17 +668,11 @@ function SidebarMenuSubItem({
   )
 }
 
-function SidebarMenuSubButton({
-  asChild = false,
-  size = "md",
-  isActive = false,
-  className,
-  ...props
-}: React.ComponentProps<"a"> & {
+const SidebarMenuSubButton = React.forwardRef<HTMLAnchorElement, React.ComponentProps<"a"> & {
   asChild?: boolean
   size?: "sm" | "md"
   isActive?: boolean
-}) {
+}>(({ asChild = false, size = "md", isActive = false, className, ...props }, ref) => {
   const Comp = asChild ? SlotPrimitive.Slot : "a"
 
   return (
@@ -693,10 +689,12 @@ function SidebarMenuSubButton({
         "group-data-[collapsible=icon]:hidden",
         className
       )}
+      ref={ref}
       {...props}
     />
   )
-}
+})
+SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
 
 export {
   Sidebar,

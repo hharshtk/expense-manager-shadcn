@@ -55,6 +55,7 @@ export async function createExpense(formData: ExpenseFormData): Promise<ActionRe
         type: formData.type,
         amount: formData.amount,
         description: formData.description,
+        categoryId: formData.category ? Number.parseInt(formData.category) : null,
         date: formData.date,
         notes: formData.notes || null,
         isConfirmed: formData.isConfirmed ?? true,
@@ -121,6 +122,9 @@ export async function updateExpense(
     if (formData.date !== undefined) updateData.date = formData.date;
     if (formData.notes !== undefined) updateData.notes = formData.notes || null;
     if (formData.isConfirmed !== undefined) updateData.isConfirmed = formData.isConfirmed;
+    if (formData.category !== undefined) {
+      updateData.categoryId = formData.category ? Number.parseInt(formData.category) : null;
+    }
 
     const [updatedExpense] = await db
       .update(expenses)

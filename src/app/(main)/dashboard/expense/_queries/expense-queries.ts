@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { getCurrentUser } from "@/lib/auth";
 import { authOptions } from "@/lib/auth-nextauth";
 import { db } from "@/lib/db";
-import { expenses } from "@/lib/schema";
+import { categories, expenses } from "@/lib/schema";
 
 async function getAuthenticatedUserId(): Promise<number | null> {
   const session = await getServerSession(authOptions);
@@ -30,8 +30,39 @@ export async function getExpenses() {
   }
 
   const userExpenses = await db
-    .select()
+    .select({
+      id: expenses.id,
+      userId: expenses.userId,
+      description: expenses.description,
+      amount: expenses.amount,
+      date: expenses.date,
+      type: expenses.type,
+      notes: expenses.notes,
+      isConfirmed: expenses.isConfirmed,
+      categoryId: expenses.categoryId,
+      financialAccountId: expenses.financialAccountId,
+      paymentMethodId: expenses.paymentMethodId,
+      currency: expenses.currency,
+      time: expenses.time,
+      location: expenses.location,
+      merchant: expenses.merchant,
+      tags: expenses.tags,
+      isRecurring: expenses.isRecurring,
+      recurrenceType: expenses.recurrenceType,
+      recurrenceEndDate: expenses.recurrenceEndDate,
+      parentExpenseId: expenses.parentExpenseId,
+      isExcludedFromStats: expenses.isExcludedFromStats,
+      createdAt: expenses.createdAt,
+      updatedAt: expenses.updatedAt,
+      category: {
+        id: categories.id,
+        name: categories.name,
+        icon: categories.icon,
+        color: categories.color,
+      },
+    })
     .from(expenses)
+    .leftJoin(categories, eq(expenses.categoryId, categories.id))
     .where(eq(expenses.userId, userId))
     .orderBy(desc(expenses.date), desc(expenses.createdAt));
 
