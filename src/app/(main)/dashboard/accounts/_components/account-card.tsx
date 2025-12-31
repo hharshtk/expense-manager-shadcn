@@ -120,11 +120,15 @@ export function AccountCard({ account, onUpdate, onDelete }: AccountCardProps) {
                                 <ArrowUpFromLine className="mr-2 h-4 w-4" />
                                 Adjust Balance
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={handleDelete} disabled={isDeleting} className="text-destructive">
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Account
-                            </DropdownMenuItem>
+                            {!account.isDefault && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={handleDelete} disabled={isDeleting} className="text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete Account
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </CardHeader>

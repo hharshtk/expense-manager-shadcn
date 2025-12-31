@@ -1,6 +1,6 @@
 {
-  "id": "eb1b768b-a1e0-47f8-97a3-26032ed9d672",
-  "prevId": "5db50ffc-8674-4de0-af9d-a120a83a70d1",
+  "id": "e2643ecf-fc68-43fd-bcda-c5c8cc73538d",
+  "prevId": "eb1b768b-a1e0-47f8-97a3-26032ed9d672",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -138,8 +138,12 @@
           "name": "budgets_user_id_users_id_fk",
           "tableFrom": "budgets",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -147,8 +151,12 @@
           "name": "budgets_category_id_categories_id_fk",
           "tableFrom": "budgets",
           "tableTo": "categories",
-          "columnsFrom": ["category_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -280,8 +288,12 @@
           "name": "categories_user_id_users_id_fk",
           "tableFrom": "categories",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -380,8 +392,12 @@
           "name": "expense_tags_expense_id_expenses_id_fk",
           "tableFrom": "expense_tags",
           "tableTo": "expenses",
-          "columnsFrom": ["expense_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "expense_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -389,8 +405,12 @@
           "name": "expense_tags_tag_id_tags_id_fk",
           "tableFrom": "expense_tags",
           "tableTo": "tags",
-          "columnsFrom": ["tag_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "tag_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -642,8 +662,12 @@
           "name": "expenses_user_id_users_id_fk",
           "tableFrom": "expenses",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -651,8 +675,12 @@
           "name": "expenses_category_id_categories_id_fk",
           "tableFrom": "expenses",
           "tableTo": "categories",
-          "columnsFrom": ["category_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -660,8 +688,12 @@
           "name": "expenses_financial_account_id_financial_accounts_id_fk",
           "tableFrom": "expenses",
           "tableTo": "financial_accounts",
-          "columnsFrom": ["financial_account_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "financial_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -669,8 +701,12 @@
           "name": "expenses_payment_method_id_payment_methods_id_fk",
           "tableFrom": "expenses",
           "tableTo": "payment_methods",
-          "columnsFrom": ["payment_method_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "payment_method_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -758,6 +794,13 @@
           "notNull": false,
           "default": true
         },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
         "notes": {
           "name": "notes",
           "type": "text",
@@ -801,8 +844,12 @@
           "name": "financial_accounts_user_id_users_id_fk",
           "tableFrom": "financial_accounts",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -929,8 +976,12 @@
           "name": "oauth_accounts_user_id_users_id_fk",
           "tableFrom": "oauth_accounts",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1038,8 +1089,12 @@
           "name": "payment_methods_user_id_users_id_fk",
           "tableFrom": "payment_methods",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1160,8 +1215,12 @@
           "name": "savings_goals_user_id_users_id_fk",
           "tableFrom": "savings_goals",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1257,8 +1316,12 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1268,7 +1331,9 @@
         "sessions_token_unique": {
           "name": "sessions_token_unique",
           "nullsNotDistinct": false,
-          "columns": ["token"]
+          "columns": [
+            "token"
+          ]
         }
       },
       "policies": {},
@@ -1339,8 +1404,12 @@
           "name": "tags_user_id_users_id_fk",
           "tableFrom": "tags",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1486,7 +1555,9 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": ["email"]
+          "columns": [
+            "email"
+          ]
         }
       },
       "policies": {},
@@ -1498,22 +1569,48 @@
     "public.account_type": {
       "name": "account_type",
       "schema": "public",
-      "values": ["cash", "bank", "credit_card", "debit_card", "digital_wallet", "investment", "loan", "other"]
+      "values": [
+        "cash",
+        "bank",
+        "credit_card",
+        "debit_card",
+        "digital_wallet",
+        "investment",
+        "loan",
+        "other"
+      ]
     },
     "public.budget_period": {
       "name": "budget_period",
       "schema": "public",
-      "values": ["daily", "weekly", "monthly", "quarterly", "yearly"]
+      "values": [
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+        "yearly"
+      ]
     },
     "public.expense_type": {
       "name": "expense_type",
       "schema": "public",
-      "values": ["expense", "income"]
+      "values": [
+        "expense",
+        "income"
+      ]
     },
     "public.recurrence_type": {
       "name": "recurrence_type",
       "schema": "public",
-      "values": ["none", "daily", "weekly", "biweekly", "monthly", "quarterly", "yearly"]
+      "values": [
+        "none",
+        "daily",
+        "weekly",
+        "biweekly",
+        "monthly",
+        "quarterly",
+        "yearly"
+      ]
     }
   },
   "schemas": {},

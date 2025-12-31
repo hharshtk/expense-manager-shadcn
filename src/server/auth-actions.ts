@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { clearAuthCookie, generateToken, hashPassword, setAuthCookie, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users } from "@/lib/schema";
+import { financialAccounts, users } from "@/lib/schema";
 
 // Validation schemas
 const loginSchema = z.object({
@@ -136,6 +136,21 @@ export async function registerUser(data: z.infer<typeof registerSchema>): Promis
         name: validatedData.name,
       })
       .returning({ id: users.id, email: users.email, name: users.name });
+
+    // Create default Cash account for the new user
+    await db.insert(financialAccounts).values({
+      userId: newUser.id,
+      name: "Cash",
+      type: "cash",
+      currency: "USD",
+      initialBalance: "0",
+      currentBalance: "0",
+      color: "#22c55e", // Green color for cash
+      icon: "wallet",
+      isActive: true,
+      includeInTotal: true,
+      isDefault: true,
+    });
 
     // Generate JWT token
     const token = await generateToken({

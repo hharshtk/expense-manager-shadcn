@@ -59,7 +59,7 @@ type ExpenseFormState = {
 function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [accounts, setAccounts] = React.useState<Array<{ id: number; name: string; type: string; color: string | null; currentBalance: string | null; currency: string }>>([]);
+  const [accounts, setAccounts] = React.useState<Array<{ id: number; name: string; type: string; color: string | null; currentBalance: string | null; currency: string; isDefault: boolean | null }>>([]);
   const [form, setForm] = React.useState<ExpenseFormState>(() => ({
     date: new Date().toISOString().slice(0, 10),
     description: "",
@@ -70,12 +70,19 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
     accountId: null,
   }));
 
-  // Fetch accounts when dialog opens
+  // Fetch accounts when dialog opens and auto-select default account
   React.useEffect(() => {
     if (open) {
       getAccounts().then((result) => {
         if (result.success) {
           setAccounts(result.data);
+          // Auto-select the default Cash account if no account is selected
+          if (form.accountId === null) {
+            const defaultAccount = result.data.find((acc) => acc.isDefault);
+            if (defaultAccount) {
+              setForm((prev) => ({ ...prev, accountId: defaultAccount.id }));
+            }
+          }
         }
       });
     }

@@ -1,0 +1,1 @@
+ALTER TABLE "financial_accounts" ADD COLUMN "is_default" boolean DEFAULT false;

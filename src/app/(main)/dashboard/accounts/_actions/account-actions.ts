@@ -38,6 +38,35 @@ export type AccountFormData = {
 };
 
 /**
+ * Ensure default Cash account exists for user
+ * Creates one if it doesn't exist
+ */
+async function ensureDefaultAccount(userId: number): Promise<void> {
+    const existingDefault = await db
+        .select()
+        .from(financialAccounts)
+        .where(and(eq(financialAccounts.userId, userId), eq(financialAccounts.isDefault, true)))
+        .limit(1);
+
+    if (existingDefault.length === 0) {
+        await db.insert(financialAccounts).values({
+            userId,
+            name: "Cash",
+            type: "cash",
+            currency: "USD",
+            initialBalance: "0",
+            currentBalance: "0",
+            color: "#22c55e",
+            icon: "wallet",
+            isActive: true,
+            includeInTotal: true,
+            isDefault: true,
+        });
+        console.log("[Accounts] Created default Cash account for user:", userId);
+    }
+}
+
+/**
  * Get all accounts for the current user
  */
 export async function getAccounts(): Promise<ActionResult<typeof financialAccounts.$inferSelect[]>> {
@@ -46,6 +75,9 @@ export async function getAccounts(): Promise<ActionResult<typeof financialAccoun
         if (!userId) {
             return { success: false, error: "Unauthorized" };
         }
+
+        // Ensure default account exists for existing users
+        await ensureDefaultAccount(userId);
 
         const accounts = await db
             .select()
@@ -161,16 +193,27 @@ export async function deleteAccount(id: number): Promise<ActionResult<{ id: numb
             return { success: false, error: "Unauthorized" };
         }
 
+        // Check if account is a default account
+        const account = await db
+            .select()
+            .from(financialAccounts)
+            .where(and(eq(financialAccounts.id, id), eq(financialAccounts.userId, userId)))
+            .limit(1);
+
+        if (account.length === 0) {
+            return { success: false, error: "Account not found" };
+        }
+
+        if (account[0].isDefault) {
+            return { success: false, error: "Cannot delete the default Cash account" };
+        }
+
         // Soft delete by setting isActive to false
         const deleted = await db
             .update(financialAccounts)
             .set({ isActive: false, updatedAt: new Date() })
             .where(and(eq(financialAccounts.id, id), eq(financialAccounts.userId, userId)))
             .returning({ id: financialAccounts.id });
-
-        if (deleted.length === 0) {
-            return { success: false, error: "Account not found" };
-        }
 
         revalidatePath("/dashboard/accounts");
         revalidatePath("/dashboard/expense");

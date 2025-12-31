@@ -138,6 +138,7 @@ export const financialAccounts = pgTable(
     icon: varchar("icon", { length: 50 }), // Icon name
     isActive: boolean("is_active").default(true),
     includeInTotal: boolean("include_in_total").default(true),
+    isDefault: boolean("is_default").default(false), // Default account cannot be deleted
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

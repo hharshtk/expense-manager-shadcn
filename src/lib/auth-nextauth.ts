@@ -3,7 +3,7 @@ import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
 import { db } from "@/lib/db";
-import { users } from "@/lib/schema";
+import { financialAccounts, users } from "@/lib/schema";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -41,6 +41,22 @@ export const authOptions: NextAuthOptions = {
               })
               .returning({ id: users.id });
             user.id = newUser.id.toString();
+
+            // Create default Cash account for the new user
+            await db.insert(financialAccounts).values({
+              userId: newUser.id,
+              name: "Cash",
+              type: "cash",
+              currency: "USD",
+              initialBalance: "0",
+              currentBalance: "0",
+              color: "#22c55e", // Green color for cash
+              icon: "wallet",
+              isActive: true,
+              includeInTotal: true,
+              isDefault: true,
+            });
+            console.log("[NextAuth] Created default Cash account for user:", user.email);
           } else {
             user.id = existingUser.id.toString();
           }

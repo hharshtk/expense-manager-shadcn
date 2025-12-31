@@ -16,6 +16,7 @@ type Account = {
     color?: string | null;
     currentBalance?: string | null;
     currency: string;
+    isDefault?: boolean | null;
 };
 
 type AccountSelectorProps = {
@@ -49,7 +50,7 @@ export function AccountSelector({ accounts, value, onValueChange, disabled }: Ac
                             {selectedAccount.name}
                         </span>
                     ) : (
-                        "Select account (optional)"
+                        "Select account"
                     )}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -60,16 +61,6 @@ export function AccountSelector({ accounts, value, onValueChange, disabled }: Ac
                     <CommandList>
                         <CommandEmpty>No accounts found.</CommandEmpty>
                         <CommandGroup>
-                            <CommandItem
-                                value="none"
-                                onSelect={() => {
-                                    onValueChange(null);
-                                    setOpen(false);
-                                }}
-                            >
-                                <Check className={cn("mr-2 h-4 w-4", value === null ? "opacity-100" : "opacity-0")} />
-                                No account (optional)
-                            </CommandItem>
                             {accounts.map((account) => (
                                 <CommandItem
                                     key={account.id}
