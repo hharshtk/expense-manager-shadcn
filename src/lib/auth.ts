@@ -64,16 +64,33 @@ export async function verifyToken(token: string): Promise<UserPayload | null> {
 /**
  * Get the current authenticated user from cookies
  */
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-nextauth";
+
+/**
+ * Get the current authenticated user from cookies or NextAuth session
+ */
 export async function getCurrentUser(): Promise<UserPayload | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
 
-    if (!token) {
-      return null;
+    if (token) {
+      const verified = await verifyToken(token);
+      if (verified) return verified;
     }
 
-    return await verifyToken(token);
+    // Fallback to NextAuth session (for OAuth users)
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id && session?.user?.email) {
+      return {
+        id: parseInt(session.user.id),
+        email: session.user.email,
+        name: session.user.name || undefined,
+      };
+    }
+
+    return null;
   } catch (error) {
     return null;
   }
