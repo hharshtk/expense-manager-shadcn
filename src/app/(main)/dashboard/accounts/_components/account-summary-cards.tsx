@@ -1,8 +1,5 @@
 "use client";
 
-import { PiggyBank, Wallet } from "lucide-react";
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrencySymbol } from "@/lib/currency";
 import type { UserSettings } from "@/server/user-settings-actions";
 
@@ -22,41 +19,41 @@ export function AccountSummaryCards({ summary, userSettings }: AccountSummaryCar
     const currencySymbol = getCurrencySymbol(userSettings.defaultCurrency);
 
     return (
-        <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-                    <span className="text-lg font-semibold text-muted-foreground">{currencySymbol}</span>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">
-                        {currencySymbol}{totalBalance.toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card to-muted/30 p-5 shadow-sm">
+            {/* Decorative background element */}
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-primary/5 blur-2xl" />
+            
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
+                            Total Net Worth
+                        </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Across all accounts</p>
-                </CardContent>
-            </Card>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-medium text-muted-foreground/60">{currencySymbol}</span>
+                        <span className="text-3xl font-bold tracking-tight tabular-nums">
+                            {totalBalance.toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                    </div>
+                </div>
 
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active Accounts</CardTitle>
-                    <Wallet className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{summary.activeAccountCount}</div>
-                    <p className="text-xs text-muted-foreground">Currently in use</p>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Accounts</CardTitle>
-                    <PiggyBank className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{summary.accountCount}</div>
-                    <p className="text-xs text-muted-foreground">All accounts</p>
-                </CardContent>
-            </Card>
+                <div className="flex items-center gap-8">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                            Total Accounts
+                        </span>
+                        <span className="text-lg font-bold tabular-nums">{summary.accountCount}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                            Active Now
+                        </span>
+                        <span className="text-lg font-bold tabular-nums">{summary.activeAccountCount}</span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

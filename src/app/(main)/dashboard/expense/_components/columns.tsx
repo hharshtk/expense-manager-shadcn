@@ -116,15 +116,22 @@ export function createColumns({ onDelete, onUpdate, onEdit, userSettings }: Colu
       header: ({ column }) => <DataTableColumnHeader className="w-full text-right" column={column} title="Amount" />,
       cell: ({ row }) => {
         const amount = Number.parseFloat(row.original.amount);
-        const signedAmount = row.original.type === "expense" ? -amount : amount;
         const isIncome = row.original.type === "income";
+        const formattedNumber = new Intl.NumberFormat(userSettings.locale, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(amount);
+        const displayValue = `${currencySymbol}${formattedNumber}`;
+        
         return (
-          <div className="flex items-center justify-end gap-1.5 font-medium tabular-nums">
-            {formatCurrencyValue(signedAmount)}
+          <div className={`flex items-center justify-end gap-1.5 font-medium tabular-nums ${
+            isIncome ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+          }`}>
+            {displayValue}
             {isIncome ? (
-              <ArrowDownLeft className="size-4 text-green-600 dark:text-green-400" />
+              <ArrowDownLeft className="size-4" />
             ) : (
-              <ArrowUpRight className="size-4 text-red-600 dark:text-red-400" />
+              <ArrowUpRight className="size-4" />
             )}
           </div>
         );

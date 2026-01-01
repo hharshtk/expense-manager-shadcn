@@ -51,18 +51,18 @@ export function AccountsGrid({ accounts: initialAccounts, userSettings }: Accoun
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Your Accounts</h2>
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Your Accounts</h2>
                 <CreateAccountDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} onSuccess={handleAccountCreated}>
-                    <Button size="sm">
-                        <Plus className="mr-2 h-4 w-4" />
+                    <Button size="sm" variant="outline" className="h-8">
+                        <Plus className="mr-2 h-3.5 w-3.5" />
                         Add Account
                     </Button>
                 </CreateAccountDialog>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {accounts.map((account) => (
                     <AccountCard
                         key={account.id}

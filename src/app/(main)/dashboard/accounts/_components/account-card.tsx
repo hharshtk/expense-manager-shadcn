@@ -26,6 +26,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCurrencySymbol } from "@/lib/currency";
 import type { FinancialAccount } from "@/lib/schema";
 import type { UserSettings } from "@/server/user-settings-actions";
@@ -91,28 +92,35 @@ export function AccountCard({ account, userSettings, onUpdate, onDelete }: Accou
 
     return (
         <>
-            <Card className="relative overflow-hidden">
-                <div
-                    className="absolute left-0 top-0 h-full w-1"
-                    style={{ backgroundColor: account.color || "#6366f1" }}
-                />
-                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                    <div className="flex items-start gap-3">
-                        <div
-                            className="flex h-10 w-10 items-center justify-center rounded-lg"
-                            style={{ backgroundColor: `${account.color || "#6366f1"}15` }}
-                        >
-                            <Icon className="h-5 w-5" style={{ color: account.color || "#6366f1" }} />
+            <div className="group relative flex flex-col justify-between rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-primary/10">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
+                            <Icon className="h-4 w-4" />
                         </div>
-                        <div>
-                            <CardTitle className="text-base font-semibold">{account.name}</CardTitle>
-                            <CardDescription className="text-xs">{accountTypeLabels[account.type]}</CardDescription>
+                        <div className="flex flex-col overflow-hidden">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-sm font-semibold truncate">{account.name}</span>
+                                {account.includeInTotal && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="h-1 w-1 rounded-full bg-primary shrink-0" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="text-[10px]">Included in total balance</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{accountTypeLabels[account.type]}</span>
                         </div>
                     </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <MoreVertical className="h-3.5 w-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -135,23 +143,19 @@ export function AccountCard({ account, userSettings, onUpdate, onDelete }: Accou
                             )}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-2">
-                        <div>
-                            <div className="text-2xl font-bold">
-                                {currencySymbol}{balance.toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </div>
-                            <p className="text-xs text-muted-foreground">Current Balance</p>
-                        </div>
-                        {account.includeInTotal && (
-                            <Badge variant="secondary" className="text-xs">
-                                Included in total
-                            </Badge>
-                        )}
+                </div>
+
+                <div className="mt-4 flex items-baseline justify-between">
+                    <div className="text-xl font-bold tracking-tight tabular-nums">
+                        <span className="text-sm font-medium text-muted-foreground mr-0.5">{currencySymbol}</span>
+                        {balance.toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                </CardContent>
-            </Card>
+                    <div
+                        className="h-1.5 w-6 rounded-full opacity-80"
+                        style={{ backgroundColor: account.color || "#6366f1" }}
+                    />
+                </div>
+            </div>
 
             <EditAccountDialog
                 account={account}
