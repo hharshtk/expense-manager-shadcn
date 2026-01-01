@@ -370,7 +370,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-export function DataTable({ data: initialData, userSettings }: { data: Transaction[]; userSettings: UserSettings }) {
+export function DataTable({ data: initialData, userSettings, testButton }: { data: Transaction[]; userSettings: UserSettings; testButton?: React.ReactNode }) {
   const [data, setData] = React.useState(() => initialData);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [activeView, setActiveView] = React.useState<"all" | "income" | "expense">("all");
@@ -512,6 +512,7 @@ export function DataTable({ data: initialData, userSettings }: { data: Transacti
               </Button>
             )}
             <DataTableViewOptions table={table} />
+            {testButton && <React.Fragment key="test-button">{testButton}</React.Fragment>}
             <RecordTransactionButton
               onSuccess={() => {
                 /* TODO: Handle success */
