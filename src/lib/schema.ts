@@ -159,7 +159,7 @@ export const categories = pgTable(
     id: serial("id").primaryKey(),
     userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }), // Null for system defaults
     parentId: integer("parent_id"), // Self-reference for subcategories
-    name: varchar("name", { length: 100 }).notNull(),
+    name: varchar("name", { length: 101 }).notNull(),
     type: expenseTypeEnum("type").notNull().default("expense"),
     color: varchar("color", { length: 7 }), // Hex color
     icon: varchar("icon", { length: 50 }),
