@@ -44,32 +44,18 @@ export interface NavGroup {
   id: number;
   label?: string;
   items: NavMainItem[];
+  isDevelopmentOnly?: boolean;
 }
 
 export const sidebarItems: NavGroup[] = [
   {
     id: 1,
-    label: "Dashboards",
+    // label: "Dashboards",
     items: [
       {
         title: "Overview",
         url: "/dashboard/overview",
         icon: Gauge,
-      },
-      {
-        title: "Default",
-        url: "/dashboard/default",
-        icon: LayoutDashboard,
-      },
-      {
-        title: "CRM",
-        url: "/dashboard/crm",
-        icon: ChartBar,
-      },
-      {
-        title: "Finance",
-        url: "/dashboard/finance",
-        icon: Banknote,
       },
       {
         title: "Accounts",
@@ -90,6 +76,28 @@ export const sidebarItems: NavGroup[] = [
         title: "Categories",
         url: "/dashboard/categories",
         icon: Tags,
+      },
+    ],
+  },
+  {
+    id: 2,
+    label: "Dev Dashboards",
+    isDevelopmentOnly: true,
+    items: [
+      {
+        title: "Default",
+        url: "/dashboard/default",
+        icon: LayoutDashboard,
+      },
+      {
+        title: "CRM",
+        url: "/dashboard/crm",
+        icon: ChartBar,
+      },
+      {
+        title: "Finance",
+        url: "/dashboard/finance",
+        icon: Banknote,
       },
     ],
   },
