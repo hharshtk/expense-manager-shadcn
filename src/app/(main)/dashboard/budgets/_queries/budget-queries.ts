@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, sql, sum } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or, sql, sum } from "drizzle-orm";
 
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -17,6 +17,19 @@ export type BudgetPeriodDates = {
   periodStart: string;
   periodEnd: string;
 };
+
+/**
+ * Get all subcategory IDs for a given parent category
+ */
+async function getSubcategoryIds(categoryId: number): Promise<number[]> {
+  const subcategories = await db.query.categories.findMany({
+    where: eq(categories.parentId, categoryId),
+    columns: {
+      id: true,
+    },
+  });
+  return subcategories.map((cat) => cat.id);
+}
 
 /**
  * Calculate period start and end dates based on budget settings
@@ -114,9 +127,15 @@ export async function getBudgetsWithProgress(): Promise<BudgetWithProgress[]> {
         lte(expenses.date, periodEnd),
       ];
 
-      // If budget has a category, filter by it
+      // Filter by category
+      // If budget has a category, filter by that category and its subcategories
+      // If budget has no category, filter by expenses with no category (overall budget)
       if (budget.categoryId) {
-        conditions.push(eq(expenses.categoryId, budget.categoryId));
+        const subcategoryIds = await getSubcategoryIds(budget.categoryId);
+        const categoryIds = [budget.categoryId, ...subcategoryIds];
+        conditions.push(inArray(expenses.categoryId, categoryIds));
+      } else {
+        conditions.push(isNull(expenses.categoryId));
       }
 
       const [result] = await db
@@ -189,8 +208,15 @@ export async function getBudgetDetails(budgetId: number) {
     lte(expenses.date, periodEnd),
   ];
 
+  // Filter by category
+  // If budget has a category, filter by that category and its subcategories
+  // If budget has no category, filter by expenses with no category (overall budget)
   if (budget.categoryId) {
-    conditions.push(eq(expenses.categoryId, budget.categoryId));
+    const subcategoryIds = await getSubcategoryIds(budget.categoryId);
+    const categoryIds = [budget.categoryId, ...subcategoryIds];
+    conditions.push(inArray(expenses.categoryId, categoryIds));
+  } else {
+    conditions.push(isNull(expenses.categoryId));
   }
 
   const budgetExpenses = await db

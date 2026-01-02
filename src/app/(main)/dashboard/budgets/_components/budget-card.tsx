@@ -108,14 +108,7 @@ export function BudgetCard({ budget, categories, userCurrency }: BudgetCardProps
                 {PERIOD_LABELS[budget.period]}
               </Badge>
               {budget.category && (
-                <Badge
-                  variant="outline"
-                  className="text-xs"
-                  style={{
-                    borderColor: budget.category.color || undefined,
-                    color: budget.category.color || undefined,
-                  }}
-                >
+                <Badge variant="outline" className="text-xs">
                   {budget.category.name}
                 </Badge>
               )}
