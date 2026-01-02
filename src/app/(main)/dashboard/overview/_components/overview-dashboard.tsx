@@ -8,7 +8,6 @@ import type { DateRange } from "react-day-picker";
 import { AccountsAndBillsCards } from "./accounts-and-bills-cards";
 import { BudgetProgressCards } from "./budget-progress-cards";
 import { DateRangeSelector } from "./date-range-selector";
-import { ExpenseTrendsChart } from "./expense-trends-chart";
 import { MonthlyOverviewChart } from "./monthly-overview-chart";
 import { RecentTransactionsCard } from "./recent-transactions-card";
 import { SpendingByCategoryChart } from "./spending-by-category-chart";
@@ -32,16 +31,21 @@ export function OverviewDashboard({ defaultCurrency, initialDateRange, data }: O
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = React.useTransition();
 
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(initialDateRange);
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange(range);
     if (range?.from && range?.to) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("from", format(range.from, "yyyy-MM-dd"));
-      params.set("to", format(range.to, "yyyy-MM-dd"));
-      router.replace(`${pathname}?${params.toString()}`);
+      const from = range.from;
+      const to = range.to;
+      startTransition(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("from", format(from, "yyyy-MM-dd"));
+        params.set("to", format(to, "yyyy-MM-dd"));
+        router.replace(`${pathname}?${params.toString()}`);
+      });
     }
   };
 
@@ -55,14 +59,11 @@ export function OverviewDashboard({ defaultCurrency, initialDateRange, data }: O
             Track your expenses, income, and budget at a glance
           </p>
         </div>
-        <DateRangeSelector dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+        <DateRangeSelector dateRange={dateRange} onDateRangeChange={handleDateRangeChange} isLoading={isPending} />
       </div>
 
       {/* Summary Cards Section */}
       <SummaryCards currency={defaultCurrency} data={data.summary} />
-
-      {/* Charts Section - Row 1 */}
-      <ExpenseTrendsChart currency={defaultCurrency} data={data.trends} />
 
       {/* Charts Section - Row 2 */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">

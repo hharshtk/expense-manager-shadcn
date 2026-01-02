@@ -136,12 +136,12 @@ export function SummaryCards({
             </div>
             Savings Rate
           </CardDescription>
-          <CardTitle className="font-semibold text-2xl tabular-nums @[250px]/card:text-3xl">
+          <CardTitle className="font-semibold text-2xl tabular-nums">
             {savingsRate.toFixed(1)}%
           </CardTitle>
           <CardAction>
             <Badge variant="outline" className="text-muted-foreground">
-              <Wallet className="size-3" />
+              <Wallet className="mr-1 size-3" />
               Target: 20%
             </Badge>
           </CardAction>

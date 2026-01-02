@@ -14,15 +14,19 @@ import { cn } from "@/lib/utils";
 
 import { type TimePeriodValue, timePeriodPresets } from "./overview.config";
 
+import { Loader2 } from "lucide-react";
+
 interface DateRangeSelectorProps {
   dateRange: DateRange | undefined;
   onDateRangeChange: (range: DateRange | undefined) => void;
   className?: string;
+  isLoading?: boolean;
 }
 
-export function DateRangeSelector({ dateRange, onDateRangeChange, className }: DateRangeSelectorProps) {
+export function DateRangeSelector({ dateRange, onDateRangeChange, className, isLoading }: DateRangeSelectorProps) {
   const [selectedPreset, setSelectedPreset] = React.useState<TimePeriodValue>("30d");
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
+  const [tempDateRange, setTempDateRange] = React.useState<DateRange | undefined>(dateRange);
 
   const handlePresetChange = (value: TimePeriodValue) => {
     setSelectedPreset(value);
@@ -48,9 +52,25 @@ export function DateRangeSelector({ dateRange, onDateRangeChange, className }: D
     onDateRangeChange({ from: fromDate, to: toDate });
   };
 
-  const handleCalendarSelect = (range: DateRange | undefined) => {
-    onDateRangeChange(range);
+  const handleCalendarSelect = (range: DateRange | undefined, selectedDay: Date) => {
+    // If we already have a complete range selected, and the user clicks a new date,
+    // we want to start a NEW selection instead of letting react-day-picker try to modify the existing one.
+    // This solves the issue where clicking inside a range modifies the end date instead of starting a new start date.
+    if (tempDateRange?.from && tempDateRange?.to) {
+      setTempDateRange({ from: selectedDay, to: undefined });
+    } else {
+      setTempDateRange(range);
+    }
     setSelectedPreset("custom" as TimePeriodValue);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsCalendarOpen(open);
+    if (open) {
+      setTempDateRange(dateRange);
+    } else {
+      onDateRangeChange(tempDateRange);
+    }
   };
 
   // Initialize with default 30 days on mount
@@ -62,7 +82,7 @@ export function DateRangeSelector({ dateRange, onDateRangeChange, className }: D
 
   return (
     <div className={cn("flex flex-col gap-2 sm:flex-row sm:items-center", className)}>
-      <Select value={selectedPreset} onValueChange={handlePresetChange}>
+      <Select value={selectedPreset} onValueChange={handlePresetChange} disabled={isLoading}>
         <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder="Select period" />
         </SelectTrigger>
@@ -75,17 +95,18 @@ export function DateRangeSelector({ dateRange, onDateRangeChange, className }: D
         </SelectContent>
       </Select>
 
-      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+      <Popover open={isCalendarOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             id="date"
             variant="outline"
+            disabled={isLoading && !isCalendarOpen}
             className={cn(
               "w-full justify-start text-left font-normal sm:w-[280px]",
               !dateRange && "text-muted-foreground"
             )}
           >
-            <CalendarIcon className="mr-2 size-4" />
+            {isLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CalendarIcon className="mr-2 size-4" />}
             {dateRange?.from ? (
               dateRange.to ? (
                 <>
@@ -101,10 +122,12 @@ export function DateRangeSelector({ dateRange, onDateRangeChange, className }: D
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
+            key={isCalendarOpen ? "open" : "closed"}
+            initialFocus
             mode="range"
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
-            onSelect={handleCalendarSelect}
+            defaultMonth={tempDateRange?.from}
+            selected={tempDateRange}
+            onSelect={handleCalendarSelect as any}
             numberOfMonths={2}
           />
         </PopoverContent>
