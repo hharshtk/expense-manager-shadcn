@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 
 import {
     ArrowDownToLine,
@@ -65,6 +66,7 @@ type AccountCardProps = {
 };
 
 export function AccountCard({ account, userSettings, onUpdate, onDelete }: AccountCardProps) {
+    const router = useRouter();
     const [editDialogOpen, setEditDialogOpen] = React.useState(false);
     const [adjustDialogOpen, setAdjustDialogOpen] = React.useState(false);
     const [isDeleting, setIsDeleting] = React.useState(false);
@@ -90,9 +92,20 @@ export function AccountCard({ account, userSettings, onUpdate, onDelete }: Accou
         }
     };
 
+    const handleCardClick = (e: React.MouseEvent) => {
+        // Don't navigate if clicking on the dropdown menu or its trigger
+        if ((e.target as HTMLElement).closest('[role="menu"]') || (e.target as HTMLElement).closest('button')) {
+            return;
+        }
+        router.push(`/dashboard/accounts/${account.id}`);
+    };
+
     return (
         <>
-            <div className="group relative flex flex-col justify-between rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-primary/10">
+            <div 
+                className="group relative flex flex-col justify-between rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-primary/10 cursor-pointer"
+                onClick={handleCardClick}
+            >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">

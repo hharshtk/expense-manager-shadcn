@@ -93,6 +93,33 @@ export async function getAccounts(): Promise<ActionResult<typeof financialAccoun
 }
 
 /**
+ * Get a specific account by ID
+ */
+export async function getAccountById(id: number): Promise<ActionResult<typeof financialAccounts.$inferSelect>> {
+    try {
+        const userId = await getAuthenticatedUserId();
+        if (!userId) {
+            return { success: false, error: "Unauthorized" };
+        }
+
+        const account = await db
+            .select()
+            .from(financialAccounts)
+            .where(and(eq(financialAccounts.id, id), eq(financialAccounts.userId, userId), eq(financialAccounts.isActive, true)))
+            .limit(1);
+
+        if (account.length === 0) {
+            return { success: false, error: "Account not found" };
+        }
+
+        return { success: true, data: account[0] };
+    } catch (error) {
+        console.error("Failed to fetch account:", error);
+        return { success: false, error: "Failed to fetch account" };
+    }
+}
+
+/**
  * Create a new financial account
  */
 export async function createAccount(
