@@ -7,6 +7,7 @@ export const transactionSchema = z.object({
   categoryId: z.number().nullable(),
   financialAccountId: z.number().nullable(),
   paymentMethodId: z.number().nullable(),
+  budgetId: z.number().nullable(),
   type: z.enum(["expense", "income"]),
   amount: z.string(), // decimal stored as string
   currency: z.string(),

@@ -15,6 +15,13 @@
       "when": 1767247605375,
       "tag": "0001_wooden_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767325701581,
+      "tag": "0002_vengeful_serpent_society",
+      "breakpoints": true
     }
   ]
 }

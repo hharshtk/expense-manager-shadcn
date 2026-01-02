@@ -218,6 +218,7 @@ export const expenses = pgTable(
       onDelete: "set null",
     }),
     paymentMethodId: integer("payment_method_id").references(() => paymentMethods.id, { onDelete: "set null" }),
+    budgetId: integer("budget_id").references(() => budgets.id, { onDelete: "set null" }), // Direct budget assignment
     type: expenseTypeEnum("type").notNull().default("expense"),
     amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
@@ -429,6 +430,10 @@ export const expensesRelations = relations(expenses, ({ one, many }) => ({
     fields: [expenses.paymentMethodId],
     references: [paymentMethods.id],
   }),
+  budget: one(budgets, {
+    fields: [expenses.budgetId],
+    references: [budgets.id],
+  }),
   parentExpense: one(expenses, {
     fields: [expenses.parentExpenseId],
     references: [expenses.id],
@@ -438,7 +443,7 @@ export const expensesRelations = relations(expenses, ({ one, many }) => ({
   expenseTags: many(expenseTags),
 }));
 
-export const budgetsRelations = relations(budgets, ({ one }) => ({
+export const budgetsRelations = relations(budgets, ({ one, many }) => ({
   user: one(users, {
     fields: [budgets.userId],
     references: [users.id],
@@ -447,6 +452,7 @@ export const budgetsRelations = relations(budgets, ({ one }) => ({
     fields: [budgets.categoryId],
     references: [categories.id],
   }),
+  expenses: many(expenses),
 }));
 
 export const tagsRelations = relations(tags, ({ one, many }) => ({

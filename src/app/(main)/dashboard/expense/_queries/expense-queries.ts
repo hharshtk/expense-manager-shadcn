@@ -42,6 +42,7 @@ export async function getExpenses() {
       categoryId: expenses.categoryId,
       financialAccountId: expenses.financialAccountId,
       paymentMethodId: expenses.paymentMethodId,
+      budgetId: expenses.budgetId,
       currency: expenses.currency,
       time: expenses.time,
       location: expenses.location,
