@@ -113,40 +113,46 @@ export async function getBudgetsWithProgress(): Promise<BudgetWithProgress[]> {
   // Calculate spending for each budget
   const budgetsWithProgress = await Promise.all(
     userBudgets.map(async (budget) => {
-      const { periodStart, periodEnd } = calculatePeriodDates(
-        budget.period,
-        budget.startDate,
-        budget.endDate,
-      );
+      const budgetAmount = Number.parseFloat(budget.amount);
+      let spent = 0;
 
-      // Build the query for expenses
-      const conditions = [
-        eq(expenses.userId, user.id),
-        eq(expenses.type, "expense"),
-        gte(expenses.date, periodStart),
-        lte(expenses.date, periodEnd),
-      ];
+      // Only track transactions for active budgets
+      if (budget.isActive) {
+        const { periodStart, periodEnd } = calculatePeriodDates(
+          budget.period,
+          budget.startDate,
+          budget.endDate,
+        );
 
-      // Filter by category
-      // If budget has a category, filter by that category and its subcategories
-      // If budget has no category, filter by expenses with no category (overall budget)
-      if (budget.categoryId) {
-        const subcategoryIds = await getSubcategoryIds(budget.categoryId);
-        const categoryIds = [budget.categoryId, ...subcategoryIds];
-        conditions.push(inArray(expenses.categoryId, categoryIds));
-      } else {
-        conditions.push(isNull(expenses.categoryId));
+        // Build the query for expenses
+        const conditions = [
+          eq(expenses.userId, user.id),
+          eq(expenses.type, "expense"),
+          gte(expenses.date, periodStart),
+          lte(expenses.date, periodEnd),
+        ];
+
+        // Filter by category
+        // If budget has a category, filter by that category and its subcategories
+        // If budget has no category, filter by expenses with no category (overall budget)
+        if (budget.categoryId) {
+          const subcategoryIds = await getSubcategoryIds(budget.categoryId);
+          const categoryIds = [budget.categoryId, ...subcategoryIds];
+          conditions.push(inArray(expenses.categoryId, categoryIds));
+        } else {
+          conditions.push(isNull(expenses.categoryId));
+        }
+
+        const [result] = await db
+          .select({
+            total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+          })
+          .from(expenses)
+          .where(and(...conditions));
+
+        spent = Number.parseFloat(result?.total || "0");
       }
 
-      const [result] = await db
-        .select({
-          total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-        })
-        .from(expenses)
-        .where(and(...conditions));
-
-      const spent = Number.parseFloat(result?.total || "0");
-      const budgetAmount = Number.parseFloat(budget.amount);
       const remaining = Math.max(0, budgetAmount - spent);
       const percentUsed = budgetAmount > 0 ? Math.min(100, (spent / budgetAmount) * 100) : 0;
       const isOverBudget = spent > budgetAmount;
@@ -194,45 +200,53 @@ export async function getBudgetDetails(budgetId: number) {
     return null;
   }
 
+  let budgetExpenses: typeof expenses.$inferSelect[] = [];
+  let dailySpending: Record<string, number> = {};
+  let spent = 0;
+
+  // Always calculate period dates for consistency
   const { periodStart, periodEnd } = calculatePeriodDates(
     budget.period,
     budget.startDate,
     budget.endDate,
   );
 
-  // Get expenses for this budget's period
-  const conditions = [
-    eq(expenses.userId, user.id),
-    eq(expenses.type, "expense"),
-    gte(expenses.date, periodStart),
-    lte(expenses.date, periodEnd),
-  ];
+  // Only track transactions for active budgets
+  if (budget.isActive) {
+    // Get expenses for this budget's period
+    const conditions = [
+      eq(expenses.userId, user.id),
+      eq(expenses.type, "expense"),
+      gte(expenses.date, periodStart),
+      lte(expenses.date, periodEnd),
+    ];
 
-  // Filter by category
-  // If budget has a category, filter by that category and its subcategories
-  // If budget has no category, filter by expenses with no category (overall budget)
-  if (budget.categoryId) {
-    const subcategoryIds = await getSubcategoryIds(budget.categoryId);
-    const categoryIds = [budget.categoryId, ...subcategoryIds];
-    conditions.push(inArray(expenses.categoryId, categoryIds));
-  } else {
-    conditions.push(isNull(expenses.categoryId));
+    // Filter by category
+    // If budget has a category, filter by that category and its subcategories
+    // If budget has no category, filter by expenses with no category (overall budget)
+    if (budget.categoryId) {
+      const subcategoryIds = await getSubcategoryIds(budget.categoryId);
+      const categoryIds = [budget.categoryId, ...subcategoryIds];
+      conditions.push(inArray(expenses.categoryId, categoryIds));
+    } else {
+      conditions.push(isNull(expenses.categoryId));
+    }
+
+    budgetExpenses = await db
+      .select()
+      .from(expenses)
+      .where(and(...conditions))
+      .orderBy(expenses.date);
+
+    // Calculate daily spending for chart
+    dailySpending = budgetExpenses.reduce<Record<string, number>>((acc, expense) => {
+      const date = expense.date;
+      acc[date] = (acc[date] || 0) + Number.parseFloat(expense.amount);
+      return acc;
+    }, {});
+
+    spent = budgetExpenses.reduce((sum, e) => sum + Number.parseFloat(e.amount), 0);
   }
-
-  const budgetExpenses = await db
-    .select()
-    .from(expenses)
-    .where(and(...conditions))
-    .orderBy(expenses.date);
-
-  // Calculate daily spending for chart
-  const dailySpending = budgetExpenses.reduce<Record<string, number>>((acc, expense) => {
-    const date = expense.date;
-    acc[date] = (acc[date] || 0) + Number.parseFloat(expense.amount);
-    return acc;
-  }, {});
-
-  const spent = budgetExpenses.reduce((sum, e) => sum + Number.parseFloat(e.amount), 0);
   const budgetAmount = Number.parseFloat(budget.amount);
   const remaining = Math.max(0, budgetAmount - spent);
   const percentUsed = budgetAmount > 0 ? Math.min(100, (spent / budgetAmount) * 100) : 0;
