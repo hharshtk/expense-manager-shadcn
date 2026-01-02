@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { getCategories, seedCategories } from "@/actions/categories";
-import { CategoryDialog } from "@/components/categories/category-dialog";
 import { CategoryList } from "@/components/categories/category-list";
 
 export const metadata: Metadata = {
@@ -31,14 +30,6 @@ export default async function CategoriesPage() {
 
   return (
     <div className="flex flex-col gap-8 p-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
-          <p className="text-muted-foreground">Manage your expense and income categories.</p>
-        </div>
-        <CategoryDialog categories={categories} />
-      </div>
-
       <CategoryList categories={categories} />
     </div>
   );

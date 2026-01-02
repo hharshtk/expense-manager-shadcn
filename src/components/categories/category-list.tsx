@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { ChevronRight, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { deleteCategory } from "@/actions/categories";
@@ -39,19 +39,79 @@ interface CategoryListProps {
 }
 
 export function CategoryList({ categories }: CategoryListProps) {
+  const [openIds, setOpenIds] = React.useState<number[]>([]);
+
+  const expandableCategories = categories.filter((c) => c.subcategories.length > 0);
+  const allExpanded = expandableCategories.length > 0 && openIds.length === expandableCategories.length;
+
+  const toggleAll = () => {
+    if (allExpanded) {
+      setOpenIds([]);
+    } else {
+      setOpenIds(expandableCategories.map((c) => c.id));
+    }
+  };
+
+  const handleOpenChange = (id: number, open: boolean) => {
+    setOpenIds((prev) => (open ? [...prev, id] : prev.filter((i) => i !== id)));
+  };
+
   // Separate by type
   const expenseCategories = categories.filter((c) => c.type === "expense");
   const incomeCategories = categories.filter((c) => c.type === "income");
 
   return (
     <div className="space-y-8">
-      <CategorySection title="Expense Categories" categories={expenseCategories} />
-      <CategorySection title="Income Categories" categories={incomeCategories} />
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
+          <p className="text-muted-foreground">Manage your expense and income categories.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={toggleAll} className="h-8 gap-2">
+            {allExpanded ? (
+              <>
+                <ChevronsDownUp className="size-4" />
+                Collapse All
+              </>
+            ) : (
+              <>
+                <ChevronsUpDown className="size-4" />
+                Expand All
+              </>
+            )}
+          </Button>
+          <CategoryDialog categories={categories} />
+        </div>
+      </div>
+
+      <CategorySection
+        title="Expense Categories"
+        categories={expenseCategories}
+        openIds={openIds}
+        onOpenChange={handleOpenChange}
+      />
+      <CategorySection
+        title="Income Categories"
+        categories={incomeCategories}
+        openIds={openIds}
+        onOpenChange={handleOpenChange}
+      />
     </div>
   );
 }
 
-function CategorySection({ title, categories }: { title: string; categories: CategoryWithChildren[] }) {
+function CategorySection({
+  title,
+  categories,
+  openIds,
+  onOpenChange,
+}: {
+  title: string;
+  categories: CategoryWithChildren[];
+  openIds: number[];
+  onOpenChange: (id: number, open: boolean) => void;
+}) {
   if (categories.length === 0) return null;
 
   return (
@@ -60,15 +120,27 @@ function CategorySection({ title, categories }: { title: string; categories: Cat
       {/* Changed from grid to simple stack */}
       <div className="flex flex-col gap-2">
         {categories.map((category) => (
-          <CategoryRow key={category.id} category={category} />
+          <CategoryRow
+            key={category.id}
+            category={category}
+            isOpen={openIds.includes(category.id)}
+            onOpenChange={(open) => onOpenChange(category.id, open)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function CategoryRow({ category }: { category: CategoryWithChildren }) {
-  const [isOpen, setIsOpen] = React.useState(false);
+function CategoryRow({
+  category,
+  isOpen,
+  onOpenChange,
+}: {
+  category: CategoryWithChildren;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const hasSubcategories = category.subcategories.length > 0;
 
   const Icon =
@@ -77,7 +149,7 @@ function CategoryRow({ category }: { category: CategoryWithChildren }) {
   return (
     <Collapsible
       open={isOpen}
-      onOpenChange={setIsOpen}
+      onOpenChange={onOpenChange}
       className="rounded-md border bg-card text-card-foreground shadow-sm"
     >
       <div className="flex items-center justify-between p-2">
