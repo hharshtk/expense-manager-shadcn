@@ -3,7 +3,6 @@ import { OverviewDashboard } from "./_components/overview-dashboard";
 import {
   getOverviewSummary,
   getExpenseTrends,
-  getBudgetProgress,
   getAccountBalances,
   getRecentTransactions,
   getMonthlyOverview,
@@ -30,10 +29,9 @@ export default async function OverviewPage({
   const from = resolvedSearchParams.from ? parseISO(resolvedSearchParams.from) : startOfMonth(new Date());
   const to = resolvedSearchParams.to ? parseISO(resolvedSearchParams.to) : endOfMonth(new Date());
 
-  const [summary, trends, budgets, accounts, transactions, monthly, category] = await Promise.all([
+  const [summary, trends, accounts, transactions, monthly, category] = await Promise.all([
     getOverviewSummary(userId, from, to),
     getExpenseTrends(userId, from, to),
-    getBudgetProgress(userId, from, to),
     getAccountBalances(userId),
     getRecentTransactions(userId),
     getMonthlyOverview(userId, from, to),
@@ -47,7 +45,6 @@ export default async function OverviewPage({
       data={{
         summary,
         trends,
-        budgets,
         accounts,
         transactions,
         monthly,

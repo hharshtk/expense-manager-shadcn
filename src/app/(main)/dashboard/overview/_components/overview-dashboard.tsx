@@ -6,7 +6,6 @@ import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 
 import { AccountsAndBillsCards } from "./accounts-and-bills-cards";
-import { BudgetProgressCards } from "./budget-progress-cards";
 import { DateRangeSelector } from "./date-range-selector";
 import { MonthlyOverviewChart } from "./monthly-overview-chart";
 import { RecentTransactionsCard } from "./recent-transactions-card";
@@ -19,7 +18,6 @@ interface OverviewDashboardProps {
   data: {
     summary: any;
     trends: any;
-    budgets: any;
     accounts: any;
     transactions: any;
     monthly: any;
@@ -74,9 +72,6 @@ export function OverviewDashboard({ defaultCurrency, initialDateRange, data }: O
           <SpendingByCategoryChart currency={defaultCurrency} data={data.category} />
         </div>
       </div>
-
-      {/* Budget Progress and Insights */}
-      <BudgetProgressCards currency={defaultCurrency} data={data.budgets} />
 
       {/* Accounts and Bills */}
       <AccountsAndBillsCards currency={defaultCurrency} data={data.accounts} />

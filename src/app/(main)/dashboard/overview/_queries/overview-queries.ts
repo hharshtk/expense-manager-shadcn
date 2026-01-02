@@ -73,64 +73,6 @@ export async function getExpenseTrends(userId: number, from: Date, to: Date) {
   return Object.values(grouped).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
-export async function getBudgetProgress(userId: number, from: Date, to: Date) {
-  const fromStr = format(from, "yyyy-MM-dd");
-  const toStr = format(to, "yyyy-MM-dd");
-
-  // Get active budgets
-  const userBudgets = await db
-    .select({
-      id: budgets.id,
-      name: budgets.name,
-      amount: budgets.amount,
-      categoryId: budgets.categoryId,
-      categoryName: categories.name,
-      categoryColor: categories.color,
-    })
-    .from(budgets)
-    .leftJoin(categories, eq(budgets.categoryId, categories.id))
-    .where(and(eq(budgets.userId, userId), eq(budgets.isActive, true)));
-
-  // Calculate spending for each budget in the selected range
-  const budgetProgress = await Promise.all(
-    userBudgets.map(async (budget) => {
-      const whereClause = [
-        eq(expenses.userId, userId),
-        eq(expenses.type, "expense"),
-        gte(expenses.date, fromStr),
-        lte(expenses.date, toStr),
-      ];
-
-      if (budget.categoryId) {
-        whereClause.push(eq(expenses.categoryId, budget.categoryId));
-      }
-
-      const result = await db
-        .select({
-          total: sum(expenses.amount),
-        })
-        .from(expenses)
-        .where(and(...whereClause));
-
-      const spent = Number(result[0]?.total || 0);
-      const total = Number(budget.amount);
-      const percentage = Math.min((spent / total) * 100, 100);
-
-      return {
-        id: budget.id,
-        name: budget.name,
-        category: budget.categoryName || "Overall",
-        color: budget.categoryColor || "#cccccc",
-        spent,
-        total,
-        percentage,
-      };
-    })
-  );
-
-  return budgetProgress;
-}
-
 export async function getAccountBalances(userId: number) {
   const accounts = await db
     .select({

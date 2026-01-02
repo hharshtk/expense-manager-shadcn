@@ -207,26 +207,4 @@ export const accountBalancesData = [
 ];
 
 // Insights and alerts
-export const insightsData = [
-  {
-    id: 1,
-    type: "warning" as const,
-    title: "Dining Budget Alert",
-    message: "You've used 95% of your dining budget this month",
-    action: "View Budget",
-  },
-  {
-    id: 2,
-    type: "success" as const,
-    title: "Savings Goal Progress",
-    message: "You're on track to reach your emergency fund goal",
-    action: "View Goal",
-  },
-  {
-    id: 3,
-    type: "info" as const,
-    title: "Spending Trend",
-    message: "Your grocery spending decreased by 12% compared to last month",
-    action: "View Details",
-  },
-];
+

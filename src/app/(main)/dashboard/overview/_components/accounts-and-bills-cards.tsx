@@ -1,9 +1,10 @@
 "use client";
 
 import { CreditCard, DollarSign, Landmark, Wallet } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const accountTypeIcons = {
@@ -31,59 +32,58 @@ export function AccountsAndBillsCards({ currency = "USD", data = [] }: AccountsA
   const totalBalance = data.reduce((acc, account) => acc + account.balance, 0);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* Account Balances Card */}
-      <Card className="shadow-xs lg:col-span-2">
-        <CardHeader>
+    <Card className="shadow-xs">
+      <CardHeader>
+        <div className="flex flex-col gap-1">
           <CardTitle>Account Balances</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex items-center justify-between rounded-lg bg-muted/50 p-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Balance</p>
-              <p className="text-2xl font-semibold tabular-nums">{formatCurrency(totalBalance, { currency })}</p>
-            </div>
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
-              <Wallet className="size-6 text-primary" />
-            </div>
+          <div className="text-sm text-muted-foreground">
+            Total: <span className="font-medium text-foreground">{formatCurrency(totalBalance, { currency })}</span>
           </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {data.map((account) => {
-              const Icon = accountTypeIcons[account.type as keyof typeof accountTypeIcons] || Wallet;
-              const isNegative = account.balance < 0;
-
-              return (
-                <div key={account.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-                      <Icon className="size-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{account.name}</p>
-                      <p className="text-xs capitalize text-muted-foreground">
-                        {account.type.replace("_", " ")}
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-sm font-medium tabular-nums",
-                      isNegative ? "text-destructive" : "text-foreground"
-                    )}
-                  >
-                    {formatCurrency(account.balance, { currency: account.currency || currency })}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <Button variant="outline" size="sm" className="mt-4 w-full">
-            Manage Accounts
+        </div>
+        <CardAction>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/accounts">Manage Accounts</Link>
           </Button>
-        </CardContent>
-      </Card>
-    </div>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {data.map((account) => {
+            const Icon = accountTypeIcons[account.type as keyof typeof accountTypeIcons] || Wallet;
+            const isNegative = account.balance < 0;
+
+            return (
+              <div
+                key={account.id}
+                className="flex items-center justify-between rounded-lg border p-2.5 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <Icon className="size-4" />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="truncate text-xs font-medium">{account.name}</p>
+                    <p className="text-[10px] capitalize text-muted-foreground">
+                      {account.type.replace("_", " ")}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "ml-2 shrink-0 text-xs font-semibold tabular-nums",
+                    isNegative ? "text-destructive" : "text-foreground"
+                  )}
+                >
+                  {formatCurrency(account.balance, {
+                    currency: account.currency || currency,
+                    noDecimals: true,
+                  })}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
