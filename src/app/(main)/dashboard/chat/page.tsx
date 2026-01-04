@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Bot, Loader2, Plus, Send, Trash2, User } from "lucide-react";
+import { Bot, Loader2, PanelLeftClose, PanelLeftOpen, Plus, Send, Trash2, User, MessageSquare, Sparkles } from "lucide-react";
 import { Streamdown } from "streamdown";
+import { useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface Conversation {
@@ -24,14 +27,27 @@ interface ChatMessage {
 }
 
 export default function ChatPage() {
+  const { data: session } = useSession();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const userAvatar = session?.user?.image;
+  const userName = session?.user?.name || "User";
+  const userInitials = userName.split(" ").map(n => n[0]).join("").toUpperCase();
+
+  const truncateTitle = (title: string) => {
+    const maxLength = 40;
+    if (title.length <= maxLength) return title;
+    return title.slice(0, maxLength - 6) + "......";
+  };
 
   const loadConversations = useCallback(async () => {
     try {
@@ -126,7 +142,6 @@ export default function ChatPage() {
       const newConversationId = response.headers.get("X-Conversation-Id");
       if (newConversationId && !activeConversationId) {
         setActiveConversationId(parseInt(newConversationId));
-        loadConversations();
       }
 
       if (!response.ok) {
@@ -162,6 +177,7 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
+      loadConversations();
     }
   };
 
@@ -170,8 +186,24 @@ export default function ChatPage() {
   }, [loadConversations]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    // Scroll to bottom whenever messages change or during streaming
+    const scrollToBottom = () => {
+      if (scrollAreaRef.current) {
+        const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+      }
+    };
+
+    scrollToBottom();
+    
+    // Also scroll during streaming with a slight delay to ensure content is rendered
+    if (isLoading) {
+      const timeoutId = setTimeout(scrollToBottom, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, isLoading]);
 
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -186,39 +218,61 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="@container/main flex h-[calc(100vh-8rem)] gap-4">
+    <div className="@container/main flex h-[calc(100vh-3rem)] -m-4 md:-m-6 gap-0 overflow-hidden bg-background">
       {/* Sidebar - Conversation List */}
-      <Card className="hidden w-64 flex-shrink-0 md:flex md:flex-col">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="font-semibold text-sm">Conversations</h2>
+      <Card className={cn(
+        "hidden flex-shrink-0 md:flex md:flex-col gap-0 transition-all duration-300 ease-in-out overflow-hidden rounded-none border-y-0 border-l-0 shadow-none p-0 bg-muted/10",
+        isSidebarOpen ? "w-80 border-r" : "w-0 border-none opacity-0"
+      )}>
+        <div className="flex items-center justify-between border-b px-4 py-3 shrink-0 h-[52px] bg-background">
+          <h2 className="font-bold text-sm tracking-tight">Chat History</h2>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setIsSidebarOpen(false)}
+              title="Collapse sidebar"
+              className="hidden md:flex h-8 w-8"
+            >
+              <PanelLeftClose className="size-4 text-muted-foreground" />
+            </Button>
+          </div>
+        </div>
+        
+        <div className="p-3 shrink-0">
           <Button
-            variant="ghost"
-            size="icon-sm"
             onClick={handleNewConversation}
-            title="New conversation"
+            className="w-full justify-start gap-2 h-10 shadow-sm"
+            variant="outline"
           >
             <Plus className="size-4" />
+            <span className="text-sm font-medium">New Conversation</span>
           </Button>
         </div>
-        <ScrollArea className="flex-1 px-2 py-2">
-          {isLoadingConversations ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+
+        <ScrollArea className="flex-1 overflow-visible">
+          <div className="px-3 pb-4">
+            {isLoadingConversations ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-5 animate-spin text-primary/50" />
             </div>
           ) : conversations.length === 0 ? (
-            <p className="text-muted-foreground text-center text-sm py-8">
-              No conversations yet
-            </p>
+            <div className="text-center py-12 px-4">
+              <MessageSquare className="size-8 text-muted-foreground/20 mx-auto mb-3" />
+              <p className="text-muted-foreground text-xs font-medium">
+                No conversations yet
+              </p>
+            </div>
           ) : (
             <div className="space-y-1">
               {conversations.map((conversation) => (
                 <div
                   key={conversation.id}
                   className={cn(
-                    "group flex items-center justify-between rounded-md px-3 py-2 text-sm cursor-pointer transition-colors",
+                    "group flex items-center rounded-lg py-1.5 text-sm cursor-pointer transition-all duration-200",
                     activeConversationId === conversation.id
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-accent/50"
+                      ? "bg-primary/5 text-primary font-medium"
+                      : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                   )}
                   onClick={() => handleSelectConversation(conversation)}
                   onKeyDown={(e) => {
@@ -229,11 +283,25 @@ export default function ChatPage() {
                   role="button"
                   tabIndex={0}
                 >
-                  <span className="truncate flex-1">{conversation.title}</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex-1 pr-2">{truncateTitle(conversation.title)}</span>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="bottom" 
+                      align="start" 
+                      className="bg-popover text-popover-foreground border shadow-md py-1.5 px-3 text-xs max-w-[280px] break-words"
+                    >
+                      {conversation.title}
+                    </TooltipContent>
+                  </Tooltip>
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="opacity-0 group-hover:opacity-100 size-6"
+                    className={cn(
+                      "opacity-0 group-hover:opacity-100 size-6 rounded-md hover:bg-destructive/10 hover:text-destructive transition-all",
+                      activeConversationId === conversation.id && "opacity-100"
+                    )}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteConversation(conversation.id);
@@ -245,96 +313,197 @@ export default function ChatPage() {
               ))}
             </div>
           )}
+          </div>
         </ScrollArea>
       </Card>
 
       {/* Main Chat Area */}
-      <Card className="flex flex-1 flex-col">
+      <Card className="flex flex-1 flex-col gap-0 overflow-hidden rounded-none border-none shadow-none min-h-0 p-0">
+        <div className="flex items-center gap-3 border-b px-4 py-3 shrink-0 h-[52px] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          {!isSidebarOpen && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setIsSidebarOpen(true)}
+                title="Expand sidebar"
+                className="h-8 w-8"
+              >
+                <PanelLeftOpen className="size-4 text-muted-foreground" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleNewConversation}
+                title="New conversation"
+                className="h-8 w-8"
+              >
+                <Plus className="size-4 text-muted-foreground" />
+              </Button>
+            </div>
+          )}
+          <div className="flex flex-1 items-center gap-2.5 overflow-hidden">
+            <div className="size-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Bot className="size-4 text-primary" />
+            </div>
+            <div className="flex flex-col overflow-hidden">
+              <h2 className="font-bold text-sm truncate leading-none">
+                {activeConversationId 
+                  ? conversations.find(c => c.id === activeConversationId)?.title 
+                  : "New Chat"}
+              </h2>
+            </div>
+          </div>
+          {isSidebarOpen && (
+            <div className="flex items-center gap-2">
+              {/* System Online badge removed */}
+            </div>
+          )}
+        </div>
+
         {/* Messages */}
-        <ScrollArea className="flex-1 px-4 py-4">
-          {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center">
-              <Bot className="size-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold">AI Assistant</h3>
-              <p className="text-muted-foreground text-sm mt-1 max-w-md">
-                Start a conversation by typing a message below. I&apos;m here to help you with any questions!
-              </p>
+        <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
+          <div className={cn("px-4 py-8 max-w-4xl mx-auto w-full", messages.length === 0 && "h-full")}>
+            {messages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-center space-y-6">
+              <div className="size-20 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Bot className="size-10 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold tracking-tight">How can I help you today?</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-lg mt-4">
+                {[
+                  "Analyze my spending this month",
+                  "How much did I spend on groceries?",
+                  "Create a new budget for travel",
+                  "Show my recent transactions"
+                ].map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    variant="outline"
+                    className="h-auto py-3 px-4 justify-start text-left font-normal hover:bg-accent"
+                    onClick={() => {
+                      setInputValue(suggestion);
+                    }}
+                  >
+                    <Sparkles className="size-3.5 mr-2 text-primary" />
+                    <span className="truncate text-xs">{suggestion}</span>
+                  </Button>
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {messages.map((message) => (
+            <div className="space-y-8">
+              {messages.map((message, index) => {
+                const isStreaming = isLoading && message.id === messages[messages.length - 1]?.id && message.role === "assistant";
+                return (
                 <div
                   key={message.id}
                   className={cn(
-                    "flex gap-3",
-                    message.role === "user" ? "justify-end" : "justify-start"
+                    "flex gap-4 group",
+                    message.role === "user" ? "flex-row-reverse" : "flex-row"
                   )}
                 >
-                  {message.role === "assistant" && (
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <Bot className="size-4" />
-                    </div>
+                  {message.role === "user" && !isStreaming && (
+                    <Avatar className={cn(
+                      "size-8 shrink-0 border shadow-sm",
+                      message.role === "assistant" ? "bg-primary text-primary-foreground" : "bg-background"
+                    )}>
+                      {message.role === "assistant" ? (
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          <Bot className="size-4" />
+                        </AvatarFallback>
+                      ) : (
+                        <>
+                          <AvatarImage src={userAvatar || undefined} />
+                          <AvatarFallback>{userInitials}</AvatarFallback>
+                        </>
+                      )}
+                    </Avatar>
                   )}
-                  <div
-                    className={cn(
-                      "max-w-[80%] rounded-lg px-4 py-2 text-sm",
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
+                  
+                  <div className={cn(
+                    "flex flex-col gap-1.5 max-w-[85%]",
+                    message.role === "user" ? "items-end" : "items-start"
+                  )}>
+                    {!isStreaming && (
+                      <div className="flex items-center gap-2 px-1">
+                        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                          {message.role === "assistant" ? "" : ""}
+                        </span>
+                      </div>
                     )}
-                  >
-                    {message.role === "user" ? (
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                    ) : (
-                      <Streamdown
-                        mode={
-                          isLoading && message.id === messages[messages.length - 1]?.id
-                            ? "streaming"
-                            : "static"
-                        }
-                      >
-                        {message.content}
-                      </Streamdown>
-                    )}
-                    {isLoading && message.role === "assistant" && !message.content && (
-                      <Loader2 className="size-4 animate-spin" />
-                    )}
+                    
+                    <div
+                      className={cn(
+                        "rounded-2xl px-4 py-2.5 text-sm shadow-sm transition-all",
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-tr-none"
+                          : "bg-muted/50 border rounded-tl-none"
+                      )}
+                    >
+                      {message.role === "user" ? (
+                        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      ) : (
+                        <div className="chat-markdown max-w-none leading-relaxed">
+                          <Streamdown
+                            mode={
+                              isStreaming
+                                ? "streaming"
+                                : "static"
+                            }
+                          >
+                            {message.content}
+                          </Streamdown>
+                        </div>
+                      )}
+                      {isLoading && message.role === "assistant" && !message.content && (
+                        <div className="flex items-center gap-2 py-1">
+                          <Loader2 className="size-3.5 animate-spin text-primary" />
+                          <span className="text-xs text-muted-foreground animate-pulse">Thinking...</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {message.role === "user" && (
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                      <User className="size-4" />
-                    </div>
-                  )}
                 </div>
-              ))}
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
           )}
+          </div>
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="border-t px-4 py-3">
-          <form onSubmit={handleFormSubmit} className="flex gap-2">
-            <Textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              className="min-h-[44px] max-h-32 resize-none"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={isLoading || !inputValue.trim()}
-            >
-              {isLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Send className="size-4" />
-              )}
-            </Button>
-          </form>
+        <div className="p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
+          <div className="max-w-4xl mx-auto relative">
+            <form onSubmit={handleFormSubmit} className="relative flex items-end gap-2 bg-muted/50 border rounded-2xl p-2 focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all">
+              <Textarea
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Message AI Assistant..."
+                className="min-h-[44px] max-h-48 resize-none py-3 px-3 bg-transparent border-none shadow-none focus-visible:ring-0"
+                disabled={isLoading}
+              />
+              <Button
+                type="submit"
+                size="icon"
+                className={cn(
+                  "shrink-0 h-9 w-9 rounded-xl transition-all",
+                  !inputValue.trim() || isLoading ? "opacity-50" : "opacity-100"
+                )}
+                disabled={isLoading || !inputValue.trim()}
+              >
+                {isLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
+              </Button>
+            </form>
+          </div>
         </div>
       </Card>
     </div>

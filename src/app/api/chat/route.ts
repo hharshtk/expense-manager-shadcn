@@ -4,7 +4,7 @@ import { createGateway } from "@ai-sdk/gateway";
 import { db } from "@/lib/db";
 import { conversations, messages } from "@/lib/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 // Create Vercel AI Gateway provider
 const gateway = createGateway({
@@ -45,6 +45,12 @@ export async function POST(req: Request) {
         role: "user",
         content: lastUserMessage.content,
       });
+
+      // Update conversation updatedAt to bring it to top
+      await db
+        .update(conversations)
+        .set({ updatedAt: new Date() })
+        .where(eq(conversations.id, activeConversationId));
     }
 
     const result = streamText({
@@ -58,16 +64,16 @@ export async function POST(req: Request) {
           content: text,
         });
 
-        // Update conversation title if it's the first message
-        if (chatMessages.length === 1) {
-          await db
-            .update(conversations)
-            .set({ 
-              title: lastUserMessage?.content?.slice(0, 50) || "New Conversation",
-              updatedAt: new Date(),
-            })
-            .where(eq(conversations.id, activeConversationId));
-        }
+        // Update conversation title if it's the first message, and always update updatedAt
+        await db
+          .update(conversations)
+          .set({
+            ...(chatMessages.length === 1
+              ? { title: lastUserMessage?.content?.slice(0, 50) || "New Conversation" }
+              : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(conversations.id, activeConversationId));
       },
     });
 
@@ -107,7 +113,7 @@ export async function GET(req: Request) {
       .select()
       .from(conversations)
       .where(eq(conversations.userId, user.id))
-      .orderBy(conversations.updatedAt);
+      .orderBy(desc(conversations.updatedAt));
 
     return Response.json(userConversations);
   } catch (error) {

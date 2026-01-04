@@ -173,3 +173,59 @@ html {
 .disable-transitions * {
   transition: none !important;
 }
+
+/* Chat Markdown Styles */
+.chat-markdown {
+  line-height: 1.6;
+}
+.chat-markdown p {
+  margin-bottom: 0.75rem;
+}
+.chat-markdown p:last-child {
+  margin-bottom: 0;
+}
+.chat-markdown ul, .chat-markdown ol {
+  margin-bottom: 0.75rem;
+  padding-left: 1.25rem;
+}
+.chat-markdown ul {
+  list-style-type: disc;
+}
+.chat-markdown ol {
+  list-style-type: decimal;
+}
+.chat-markdown li {
+  margin-bottom: 0.25rem;
+}
+.chat-markdown code {
+  background-color: var(--muted);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.875em;
+}
+.chat-markdown pre {
+  background-color: var(--muted);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+.chat-markdown pre code {
+  background-color: transparent;
+  padding: 0;
+}
+.chat-markdown h1, .chat-markdown h2, .chat-markdown h3 {
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.chat-markdown h1 { font-size: 1.25rem; }
+.chat-markdown h2 { font-size: 1.125rem; }
+.chat-markdown h3 { font-size: 1rem; }
+.chat-markdown blockquote {
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  font-style: italic;
+  margin-bottom: 0.75rem;
+}
