@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Bot, Loader2, Plus, Send, Trash2, User } from "lucide-react";
+import { Streamdown } from "streamdown";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -282,7 +283,19 @@ export default function ChatPage() {
                         : "bg-muted"
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{message.content || (isLoading && message.role === "assistant" ? "" : "")}</p>
+                    {message.role === "user" ? (
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    ) : (
+                      <Streamdown
+                        mode={
+                          isLoading && message.id === messages[messages.length - 1]?.id
+                            ? "streaming"
+                            : "static"
+                        }
+                      >
+                        {message.content}
+                      </Streamdown>
+                    )}
                     {isLoading && message.role === "assistant" && !message.content && (
                       <Loader2 className="size-4 animate-spin" />
                     )}
