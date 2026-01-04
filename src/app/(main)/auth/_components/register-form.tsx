@@ -43,7 +43,7 @@ export function RegisterForm() {
   });
 
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" });
+    signIn("google", { callbackUrl: "/dashboard/overview" });
   };
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
@@ -54,7 +54,7 @@ export function RegisterForm() {
 
       if (result.success) {
         toast.success(result.message || "Registration successful!");
-        router.push("/dashboard");
+        router.push("/dashboard/overview");
         router.refresh();
       } else {
         toast.error(result.message || "Registration failed. Please try again.");

@@ -112,6 +112,7 @@ export async function updateUserSettings(
         }
 
         revalidatePath("/dashboard");
+        revalidatePath("/dashboard/overview");
         revalidatePath("/dashboard/expense");
         revalidatePath("/dashboard/accounts");
 

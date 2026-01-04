@@ -37,7 +37,7 @@ export function LoginForm() {
   });
 
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" });
+    signIn("google", { callbackUrl: "/dashboard/overview" });
   };
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
@@ -48,7 +48,7 @@ export function LoginForm() {
 
       if (result.success) {
         toast.success(result.message || "Login successful!");
-        router.push("/dashboard");
+        router.push("/dashboard/overview");
         router.refresh();
       } else {
         toast.error(result.message || "Login failed. Please try again.");

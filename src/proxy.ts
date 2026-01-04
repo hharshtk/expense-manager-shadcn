@@ -14,8 +14,8 @@ function middleware(request: NextRequest) {
 
   // If user has custom auth token and trying to access auth pages, redirect to dashboard
   if (token && pathname.startsWith("/auth")) {
-    console.log("[Middleware] Redirecting authenticated custom user to /dashboard");
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    console.log("[Middleware] Redirecting authenticated custom user to /dashboard/overview");
+    return NextResponse.redirect(new URL("/dashboard/overview", request.url));
   }
 
   return NextResponse.next();
