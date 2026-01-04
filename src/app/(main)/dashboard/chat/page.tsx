@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Bot, Loader2, PanelLeftClose, PanelLeftOpen, Plus, Send, Trash2, User, MessageSquare, Sparkles } from "lucide-react";
+import { Loader2, PanelLeftClose, PanelLeftOpen, Plus, Send, Trash2, User, MessageSquare, Sparkles } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { useSession } from "next-auth/react";
 
@@ -343,9 +343,6 @@ export default function ChatPage() {
             </div>
           )}
           <div className="flex flex-1 items-center gap-2.5 overflow-hidden">
-            <div className="size-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Bot className="size-4 text-primary" />
-            </div>
             <div className="flex flex-col overflow-hidden">
               <h2 className="font-bold text-sm truncate leading-none">
                 {activeConversationId 
@@ -365,10 +362,7 @@ export default function ChatPage() {
         <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
           <div className={cn("px-4 py-8 max-w-4xl mx-auto w-full", messages.length === 0 && "h-full")}>
             {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center space-y-6">
-              <div className="size-20 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <Bot className="size-10 text-primary" />
-              </div>
+            <div className="flex h-full flex-col items-center justify-center text-center space-y-6 mt-40">
               <div className="space-y-2">
                 <h3 className="text-2xl font-bold tracking-tight">How can I help you today?</h3>
               </div>
@@ -472,7 +466,7 @@ export default function ChatPage() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Message AI Assistant..."
+                placeholder="Ask anything..."
                 className="min-h-[44px] max-h-48 resize-none py-3 px-3 bg-transparent border-none shadow-none focus-visible:ring-0"
                 disabled={isLoading}
               />
