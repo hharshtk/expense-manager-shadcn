@@ -354,6 +354,53 @@ export const savingsGoals = pgTable(
 );
 
 // ============================================================================
+// CHAT
+// ============================================================================
+
+export const messageRoleEnum = pgEnum("message_role", ["user", "assistant", "system"]);
+
+/**
+ * Conversations - Chat conversations for AI chatbot
+ */
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 255 }).default("New Conversation"),
+    isArchived: boolean("is_archived").default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_conversations_user_id").on(table.userId),
+    index("idx_conversations_created_at").on(table.createdAt),
+  ],
+);
+
+/**
+ * Messages - Individual messages within a conversation
+ */
+export const messages = pgTable(
+  "messages",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    role: messageRoleEnum("role").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_messages_conversation_id").on(table.conversationId),
+    index("idx_messages_created_at").on(table.createdAt),
+  ],
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -367,6 +414,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   budgets: many(budgets),
   tags: many(tags),
   savingsGoals: many(savingsGoals),
+  conversations: many(conversations),
 }));
 
 export const oauthAccountsRelations = relations(oauthAccounts, ({ one }) => ({
@@ -482,6 +530,21 @@ export const savingsGoalsRelations = relations(savingsGoals, ({ one }) => ({
   }),
 }));
 
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  user: one(users, {
+    fields: [conversations.userId],
+    references: [users.id],
+  }),
+  messages: many(messages),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -508,3 +571,7 @@ export type ExpenseTag = typeof expenseTags.$inferSelect;
 export type NewExpenseTag = typeof expenseTags.$inferInsert;
 export type SavingsGoal = typeof savingsGoals.$inferSelect;
 export type NewSavingsGoal = typeof savingsGoals.$inferInsert;
+export type Conversation = typeof conversations.$inferSelect;
+export type NewConversation = typeof conversations.$inferInsert;
+export type Message = typeof messages.$inferSelect;
+export type NewMessage = typeof messages.$inferInsert;
