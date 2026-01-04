@@ -406,20 +406,9 @@ export default function ChatPage() {
                   )}
                 >
                   {message.role === "user" && !isStreaming && (
-                    <Avatar className={cn(
-                      "size-8 shrink-0 border shadow-sm",
-                      message.role === "assistant" ? "bg-primary text-primary-foreground" : "bg-background"
-                    )}>
-                      {message.role === "assistant" ? (
-                        <AvatarFallback className="bg-primary text-primary-foreground">
-                          <Bot className="size-4" />
-                        </AvatarFallback>
-                      ) : (
-                        <>
-                          <AvatarImage src={userAvatar || undefined} />
-                          <AvatarFallback>{userInitials}</AvatarFallback>
-                        </>
-                      )}
+                    <Avatar className="size-8 shrink-0 border shadow-sm bg-background">
+                      <AvatarImage src={userAvatar || undefined} />
+                      <AvatarFallback>{userInitials}</AvatarFallback>
                     </Avatar>
                   )}
                   
