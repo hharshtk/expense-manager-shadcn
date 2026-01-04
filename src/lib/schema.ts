@@ -134,6 +134,7 @@ export const financialAccounts = pgTable(
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
     initialBalance: decimal("initial_balance", { precision: 15, scale: 2 }).default("0"),
     currentBalance: decimal("current_balance", { precision: 15, scale: 2 }).default("0"),
+    creditLimit: decimal("credit_limit", { precision: 15, scale: 2 }), // Credit limit for credit cards
     color: varchar("color", { length: 7 }), // Hex color for UI
     icon: varchar("icon", { length: 50 }), // Icon name
     isActive: boolean("is_active").default(true),

@@ -31,6 +31,7 @@ export type AccountFormData = {
     type: "cash" | "bank" | "credit_card" | "debit_card" | "digital_wallet" | "investment" | "loan" | "other";
     currency?: string;
     initialBalance?: string;
+    creditLimit?: string;
     color?: string;
     icon?: string;
     notes?: string;
@@ -142,6 +143,7 @@ export async function createAccount(
                 currency: formData.currency || "USD",
                 initialBalance,
                 currentBalance: initialBalance,
+                creditLimit: formData.creditLimit || null,
                 color: formData.color || null,
                 icon: formData.icon || null,
                 notes: formData.notes || null,
@@ -190,6 +192,7 @@ export async function updateAccount(
         if (formData.name !== undefined) updateData.name = formData.name;
         if (formData.type !== undefined) updateData.type = formData.type;
         if (formData.currency !== undefined) updateData.currency = formData.currency;
+        if (formData.creditLimit !== undefined) updateData.creditLimit = formData.creditLimit || null;
         if (formData.color !== undefined) updateData.color = formData.color || null;
         if (formData.icon !== undefined) updateData.icon = formData.icon || null;
         if (formData.notes !== undefined) updateData.notes = formData.notes || null;

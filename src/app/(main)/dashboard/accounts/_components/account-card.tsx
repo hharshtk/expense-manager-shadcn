@@ -184,6 +184,34 @@ export function AccountCard({ account, userSettings, onUpdate, onDelete }: Accou
                         })}
                     </div>
                 </div>
+
+                {/* Credit Card Utilization */}
+                {account.type === "credit_card" && account.creditLimit && (
+                    <div className="mt-2 space-y-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-muted-foreground font-medium">Credit Used</span>
+                            <span className="font-bold tabular-nums">
+                                {((Math.abs(balance) / Number.parseFloat(account.creditLimit)) * 100).toFixed(1)}%
+                            </span>
+                        </div>
+                        <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                                className="h-full rounded-full transition-all"
+                                style={{
+                                    width: `${Math.min((Math.abs(balance) / Number.parseFloat(account.creditLimit)) * 100, 100)}%`,
+                                    backgroundColor: 
+                                        (Math.abs(balance) / Number.parseFloat(account.creditLimit)) > 0.9 ? "#ef4444" :
+                                        (Math.abs(balance) / Number.parseFloat(account.creditLimit)) > 0.7 ? "#f59e0b" :
+                                        "#22c55e",
+                                }}
+                            />
+                        </div>
+                        <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+                            <span>Available: {currencySymbol}{(Number.parseFloat(account.creditLimit) - Math.abs(balance)).toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span>Limit: {currencySymbol}{Number.parseFloat(account.creditLimit).toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <EditAccountDialog

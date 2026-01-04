@@ -59,6 +59,7 @@ export function EditAccountDialog({ account, open, onOpenChange, onSuccess }: Ed
         name: account.name,
         type: account.type,
         currency: account.currency,
+        creditLimit: account.creditLimit || "",
         color: account.color || accountColors[0],
         notes: account.notes || "",
         includeInTotal: account.includeInTotal ?? true,
@@ -70,6 +71,7 @@ export function EditAccountDialog({ account, open, onOpenChange, onSuccess }: Ed
             name: account.name,
             type: account.type,
             currency: account.currency,
+            creditLimit: account.creditLimit || "",
             color: account.color || accountColors[0],
             notes: account.notes || "",
             includeInTotal: account.includeInTotal ?? true,
@@ -89,6 +91,7 @@ export function EditAccountDialog({ account, open, onOpenChange, onSuccess }: Ed
             name: form.name.trim(),
             type: form.type,
             currency: form.currency,
+            creditLimit: form.type === "credit_card" && form.creditLimit ? form.creditLimit : undefined,
             color: form.color,
             notes: form.notes.trim() || undefined,
             includeInTotal: form.includeInTotal,
@@ -159,6 +162,21 @@ export function EditAccountDialog({ account, open, onOpenChange, onSuccess }: Ed
                                 </Select>
                             </div>
                         </div>
+
+                        {form.type === "credit_card" && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-creditLimit">Credit Limit</Label>
+                                <Input
+                                    id="edit-creditLimit"
+                                    type="number"
+                                    step="0.01"
+                                    value={form.creditLimit}
+                                    onChange={(e) => setForm((prev) => ({ ...prev, creditLimit: e.target.value }))}
+                                    placeholder="0.00"
+                                />
+                                <p className="text-xs text-muted-foreground">Maximum credit available on this card</p>
+                            </div>
+                        )}
 
                         <div className="grid gap-2">
                             <Label>Account Color</Label>

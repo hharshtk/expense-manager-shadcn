@@ -54,11 +54,20 @@ type CreateAccountDialogProps = {
 
 export function CreateAccountDialog({ open, onOpenChange, onSuccess, children }: CreateAccountDialogProps) {
     const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const [form, setForm] = React.useState({
+    const [form, setForm] = React.useState<{
+        name: string;
+        type: "cash" | "bank" | "credit_card" | "debit_card" | "digital_wallet" | "investment" | "loan" | "other";
+        currency: string;
+        initialBalance: string;
+        creditLimit: string;
+        color: string;
+        notes: string;
+    }>({
         name: "",
-        type: "bank" as const,
+        type: "bank",
         currency: "USD",
         initialBalance: "",
+        creditLimit: "",
         color: accountColors[0],
         notes: "",
     });
@@ -77,6 +86,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess, children }:
             type: form.type,
             currency: form.currency,
             initialBalance: form.initialBalance || "0",
+            creditLimit: form.type === "credit_card" && form.creditLimit ? form.creditLimit : undefined,
             color: form.color,
             notes: form.notes.trim() || undefined,
         });
@@ -88,6 +98,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess, children }:
                 type: "bank",
                 currency: "USD",
                 initialBalance: "",
+                creditLimit: "",
                 color: accountColors[0],
                 notes: "",
             });
@@ -170,6 +181,21 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess, children }:
                                     placeholder="0.00"
                                 />
                             </div>
+
+                            {form.type === "credit_card" && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="creditLimit">Credit Limit</Label>
+                                    <Input
+                                        id="creditLimit"
+                                        type="number"
+                                        step="0.01"
+                                        value={form.creditLimit}
+                                        onChange={(e) => setForm((prev) => ({ ...prev, creditLimit: e.target.value }))}
+                                        placeholder="0.00"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Maximum credit available on this card</p>
+                                </div>
+                            )}
 
                             <div className="grid gap-2">
                                 <Label>Account Color</Label>

@@ -22,6 +22,13 @@
       "when": 1767325701581,
       "tag": "0002_vengeful_serpent_society",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1767494631526,
+      "tag": "0003_cute_zarek",
+      "breakpoints": true
     }
   ]
 }
