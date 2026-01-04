@@ -103,10 +103,10 @@ export function AccountCard({ account, userSettings, onUpdate, onDelete }: Accou
     return (
         <>
             <div 
-                className="group relative flex flex-col justify-between rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-primary/10 cursor-pointer"
+                className="group relative flex flex-col rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-primary/10 cursor-pointer"
                 onClick={handleCardClick}
             >
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
                             <Icon className="h-4 w-4" />
@@ -121,18 +121,24 @@ export function AccountCard({ account, userSettings, onUpdate, onDelete }: Accou
                                                 <div className="h-1 w-1 rounded-full bg-primary shrink-0" />
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                <p className="text-[10px]">Included in total balance</p>
+                                                <p className="text-[10px]">Included in total</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
                                 )}
                             </div>
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{accountTypeLabels[account.type]}</span>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+                                {accountTypeLabels[account.type]}
+                            </span>
                         </div>
                     </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
                                 <MoreVertical className="h-3.5 w-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
@@ -158,15 +164,25 @@ export function AccountCard({ account, userSettings, onUpdate, onDelete }: Accou
                     </DropdownMenu>
                 </div>
 
-                <div className="mt-4 flex items-baseline justify-between">
-                    <div className="text-xl font-bold tracking-tight tabular-nums">
-                        <span className="text-sm font-medium text-muted-foreground mr-0.5">{currencySymbol}</span>
-                        {balance.toLocaleString(userSettings.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="mt-3 flex items-end justify-between">
+                    <div className="flex items-center gap-1.5">
+                        <div
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ backgroundColor: account.color || "#6366f1" }}
+                        />
+                        {account.isDefault && (
+                            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                Default
+                            </span>
+                        )}
                     </div>
-                    <div
-                        className="h-1.5 w-6 rounded-full opacity-80"
-                        style={{ backgroundColor: account.color || "#6366f1" }}
-                    />
+                    <div className="text-lg font-bold tracking-tight tabular-nums text-right">
+                        <span className="text-xs font-medium text-muted-foreground mr-0.5">{currencySymbol}</span>
+                        {balance.toLocaleString(userSettings.locale, { 
+                            minimumFractionDigits: 2, 
+                            maximumFractionDigits: 2 
+                        })}
+                    </div>
                 </div>
             </div>
 
