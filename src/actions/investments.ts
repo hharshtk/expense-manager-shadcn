@@ -19,6 +19,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import YahooFinance from "yahoo-finance2";
+import { getExchangeRate as fetchExchangeRate } from "@/lib/exchange-rates";
 
 const yahooFinance = new YahooFinance({
   suppressNotices: ["yahooSurvey", "ripHistorical"],
@@ -28,19 +29,7 @@ const yahooFinance = new YahooFinance({
  * Get exchange rate between two currencies
  */
 export async function getExchangeRate(from: string, to: string): Promise<number> {
-  if (from === to) return 1;
-  
-  try {
-    const symbol = `${from}${to}=X`;
-    const quote = await yahooFinance.quote(symbol);
-    return quote.regularMarketPrice || 1;
-  } catch (error) {
-    console.error(`Failed to fetch exchange rate for ${from} to ${to}:`, error);
-    // Fallback rates for common pairs if Yahoo fails
-    if (from === "USD" && to === "INR") return 83;
-    if (from === "INR" && to === "USD") return 1/83;
-    return 1;
-  }
+  return fetchExchangeRate(from, to);
 }
 
 /**
