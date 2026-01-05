@@ -1,54 +1,94 @@
-import { getCurrentUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { getInvestments, getPortfolioSummary } from "@/actions/investments";
-import { BuyTransactionDialog } from "@/components/investments/buy-transaction-dialog";
-import { InvestmentList } from "@/components/investments/investment-list";
-import { PortfolioSummary } from "@/components/investments/portfolio-summary";
+"use client";
 
-export const metadata = {
-  title: "Investments - Expense Manager",
-  description: "Track and manage your investment portfolio",
-};
+import { useState, useEffect } from "react";
+import { getInvestmentsWithTransactions, getEnhancedPortfolioSummary, getPortfolios } from "@/actions/investments";
+import { PortfolioDashboard } from "@/components/investments/portfolio-dashboard";
+import type { Investment, InvestmentTransaction, Portfolio } from "@/lib/schema";
 
-export default async function InvestmentPage() {
-  const user = await getCurrentUser();
+export default function InvestmentPage() {
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  const [investments, setInvestments] = useState<(Investment & { transactions: InvestmentTransaction[] })[]>([]);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [summary, setSummary] = useState({
+    totalInvested: 0,
+    currentValue: 0,
+    totalGainLoss: 0,
+    totalGainLossPercent: 0,
+    dayGainLoss: 0,
+    dayGainLossPercent: 0,
+    investmentCount: 0,
+    currency: "USD",
+  });
+  const [loading, setLoading] = useState(true);
 
-  if (!user) {
-    redirect("/auth/signin");
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [investmentsResult, summaryResult, portfoliosResult] = await Promise.all([
+          getInvestmentsWithTransactions(),
+          getEnhancedPortfolioSummary(),
+          getPortfolios(),
+        ]);
+
+        setInvestments(investmentsResult.success ? (investmentsResult.data || []) : []);
+        setPortfolios(portfoliosResult.success ? (portfoliosResult.data || []) : []);
+        setSummary(summaryResult.success && summaryResult.data
+          ? summaryResult.data
+          : {
+              totalInvested: 0,
+              currentValue: 0,
+              totalGainLoss: 0,
+              totalGainLossPercent: 0,
+              dayGainLoss: 0,
+              dayGainLossPercent: 0,
+              investmentCount: 0,
+              currency: "USD",
+            });
+      } catch (error) {
+        console.error("Failed to fetch investment data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-8 space-y-8">
+        <div className="flex justify-center items-center h-64">
+          <div className="text-muted-foreground">Loading investments...</div>
+        </div>
+      </div>
+    );
   }
-
-  const [investmentsResult, summaryResult] = await Promise.all([
-    getInvestments(),
-    getPortfolioSummary(),
-  ]);
-
-  const investments = investmentsResult.success ? (investmentsResult.data || []) : [];
-  const summary = summaryResult.success && summaryResult.data
-    ? summaryResult.data
-    : {
-        totalInvested: 0,
-        currentValue: 0,
-        totalGainLoss: 0,
-        totalGainLossPercent: 0,
-        investmentCount: 0,
-        currency: "USD",
-      };
 
   return (
     <div className="container mx-auto py-8 space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Investment Portfolio</h1>
-          <p className="text-muted-foreground mt-2">
-            Track your stocks, mutual funds, and other investments
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">Investment</h1>
         </div>
-        <BuyTransactionDialog />
+        <div className="flex items-center gap-3">
+          <PortfolioDashboard
+            investments={[]}
+            portfolios={portfolios}
+            summary={{ totalInvested: 0, currentValue: 0, totalGainLoss: 0, totalGainLossPercent: 0, dayGainLoss: 0, dayGainLossPercent: 0, investmentCount: 0, currency: "USD" }}
+            showActionsOnly={true}
+            selectedPortfolioId={selectedPortfolioId}
+            onPortfolioChange={setSelectedPortfolioId}
+          />
+        </div>
       </div>
 
-      <PortfolioSummary summary={summary} />
-
-      <InvestmentList investments={investments} />
+      <PortfolioDashboard
+        investments={investments}
+        portfolios={portfolios}
+        summary={summary}
+        selectedPortfolioId={selectedPortfolioId}
+        onPortfolioChange={setSelectedPortfolioId}
+      />
     </div>
   );
 }

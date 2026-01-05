@@ -49,6 +49,7 @@ export const investmentTypeEnum = pgEnum("investment_type", [
   "other",
 ]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["buy", "sell", "dividend", "split", "bonus"]);
+export const alertTypeEnum = pgEnum("alert_type", ["price_above", "price_below", "percent_change"]);
 
 // ============================================================================
 // USERS & AUTHENTICATION
@@ -383,18 +384,25 @@ export const investments = pgTable(
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    portfolioId: integer("portfolio_id")
+      .references(() => portfolios.id, { onDelete: "set null" }),
     symbol: varchar("symbol", { length: 20 }).notNull(), // e.g., AAPL, RELIANCE.NS
     name: varchar("name", { length: 255 }).notNull(),
     type: investmentTypeEnum("type").notNull().default("stock"),
     exchange: varchar("exchange", { length: 50 }), // e.g., NASDAQ, NSE, BSE
+    sector: varchar("sector", { length: 100 }), // Technology, Healthcare, etc.
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
     totalQuantity: decimal("total_quantity", { precision: 15, scale: 4 }).default("0"),
     averagePrice: decimal("average_price", { precision: 15, scale: 4 }).default("0"),
     currentPrice: decimal("current_price", { precision: 15, scale: 4 }),
+    previousClose: decimal("previous_close", { precision: 15, scale: 4 }),
+    dayChange: decimal("day_change", { precision: 15, scale: 4 }),
+    dayChangePercent: decimal("day_change_percent", { precision: 10, scale: 2 }),
     totalInvested: decimal("total_invested", { precision: 15, scale: 2 }).default("0"),
     currentValue: decimal("current_value", { precision: 15, scale: 2 }),
     totalGainLoss: decimal("total_gain_loss", { precision: 15, scale: 2 }),
     totalGainLossPercent: decimal("total_gain_loss_percent", { precision: 10, scale: 2 }),
+    dayGainLoss: decimal("day_gain_loss", { precision: 15, scale: 2 }),
     lastUpdated: timestamp("last_updated"),
     notes: text("notes"),
     isActive: boolean("is_active").default(true),
@@ -403,6 +411,7 @@ export const investments = pgTable(
   },
   (table) => [
     index("idx_investments_user_id").on(table.userId),
+    index("idx_investments_portfolio_id").on(table.portfolioId),
     index("idx_investments_symbol").on(table.symbol),
     uniqueIndex("idx_investments_user_symbol").on(table.userId, table.symbol),
   ],
@@ -439,6 +448,115 @@ export const investmentTransactions = pgTable(
     index("idx_investment_transactions_investment_id").on(table.investmentId),
     index("idx_investment_transactions_date").on(table.date),
     index("idx_investment_transactions_type").on(table.type),
+  ],
+);
+
+// ============================================================================
+// PORTFOLIOS
+// ============================================================================
+
+/**
+ * Portfolios - Group investments into portfolios (e.g., "Retirement", "Trading")
+ */
+export const portfolios = pgTable(
+  "portfolios",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(),
+    description: text("description"),
+    color: varchar("color", { length: 7 }),
+    icon: varchar("icon", { length: 50 }),
+    isDefault: boolean("is_default").default(false),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_portfolios_user_id").on(table.userId),
+    uniqueIndex("idx_portfolios_user_name").on(table.userId, table.name),
+  ],
+);
+
+/**
+ * Portfolio Holdings - Links investments to portfolios
+ */
+export const portfolioHoldings = pgTable(
+  "portfolio_holdings",
+  {
+    id: serial("id").primaryKey(),
+    portfolioId: integer("portfolio_id")
+      .notNull()
+      .references(() => portfolios.id, { onDelete: "cascade" }),
+    investmentId: integer("investment_id")
+      .notNull()
+      .references(() => investments.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_portfolio_holdings_unique").on(table.portfolioId, table.investmentId),
+    index("idx_portfolio_holdings_portfolio_id").on(table.portfolioId),
+    index("idx_portfolio_holdings_investment_id").on(table.investmentId),
+  ],
+);
+
+// ============================================================================
+// WATCHLIST
+// ============================================================================
+
+/**
+ * Watchlist - Track stocks without owning them
+ */
+export const watchlist = pgTable(
+  "watchlist",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 20 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    type: investmentTypeEnum("type").notNull().default("stock"),
+    exchange: varchar("exchange", { length: 50 }),
+    currency: varchar("currency", { length: 3 }).default("USD"),
+    targetPrice: decimal("target_price", { precision: 15, scale: 4 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_watchlist_user_id").on(table.userId),
+    uniqueIndex("idx_watchlist_user_symbol").on(table.userId, table.symbol),
+  ],
+);
+
+/**
+ * Price Alerts - Set alerts for specific price conditions
+ */
+export const priceAlerts = pgTable(
+  "price_alerts",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 20 }).notNull(),
+    alertType: alertTypeEnum("alert_type").notNull(),
+    targetPrice: decimal("target_price", { precision: 15, scale: 4 }).notNull(),
+    currentPrice: decimal("current_price", { precision: 15, scale: 4 }),
+    isTriggered: boolean("is_triggered").default(false),
+    triggeredAt: timestamp("triggered_at"),
+    isActive: boolean("is_active").default(true),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_price_alerts_user_id").on(table.userId),
+    index("idx_price_alerts_symbol").on(table.symbol),
+    index("idx_price_alerts_is_active").on(table.isActive),
   ],
 );
 
@@ -504,6 +622,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   conversations: many(conversations),
   investments: many(investments),
   investmentTransactions: many(investmentTransactions),
+  portfolios: many(portfolios),
+  watchlist: many(watchlist),
+  priceAlerts: many(priceAlerts),
 }));
 
 export const oauthAccountsRelations = relations(oauthAccounts, ({ one }) => ({
@@ -639,7 +760,12 @@ export const investmentsRelations = relations(investments, ({ one, many }) => ({
     fields: [investments.userId],
     references: [users.id],
   }),
+  portfolio: one(portfolios, {
+    fields: [investments.portfolioId],
+    references: [portfolios.id],
+  }),
   transactions: many(investmentTransactions),
+  portfolioHoldings: many(portfolioHoldings),
 }));
 
 export const investmentTransactionsRelations = relations(investmentTransactions, ({ one }) => ({
@@ -650,6 +776,39 @@ export const investmentTransactionsRelations = relations(investmentTransactions,
   investment: one(investments, {
     fields: [investmentTransactions.investmentId],
     references: [investments.id],
+  }),
+}));
+
+export const portfoliosRelations = relations(portfolios, ({ one, many }) => ({
+  user: one(users, {
+    fields: [portfolios.userId],
+    references: [users.id],
+  }),
+  holdings: many(portfolioHoldings),
+}));
+
+export const portfolioHoldingsRelations = relations(portfolioHoldings, ({ one }) => ({
+  portfolio: one(portfolios, {
+    fields: [portfolioHoldings.portfolioId],
+    references: [portfolios.id],
+  }),
+  investment: one(investments, {
+    fields: [portfolioHoldings.investmentId],
+    references: [investments.id],
+  }),
+}));
+
+export const watchlistRelations = relations(watchlist, ({ one }) => ({
+  user: one(users, {
+    fields: [watchlist.userId],
+    references: [users.id],
+  }),
+}));
+
+export const priceAlertsRelations = relations(priceAlerts, ({ one }) => ({
+  user: one(users, {
+    fields: [priceAlerts.userId],
+    references: [users.id],
   }),
 }));
 
@@ -687,3 +846,11 @@ export type Investment = typeof investments.$inferSelect;
 export type NewInvestment = typeof investments.$inferInsert;
 export type InvestmentTransaction = typeof investmentTransactions.$inferSelect;
 export type NewInvestmentTransaction = typeof investmentTransactions.$inferInsert;
+export type Portfolio = typeof portfolios.$inferSelect;
+export type NewPortfolio = typeof portfolios.$inferInsert;
+export type PortfolioHolding = typeof portfolioHoldings.$inferSelect;
+export type NewPortfolioHolding = typeof portfolioHoldings.$inferInsert;
+export type WatchlistItem = typeof watchlist.$inferSelect;
+export type NewWatchlistItem = typeof watchlist.$inferInsert;
+export type PriceAlert = typeof priceAlerts.$inferSelect;
+export type NewPriceAlert = typeof priceAlerts.$inferInsert;
