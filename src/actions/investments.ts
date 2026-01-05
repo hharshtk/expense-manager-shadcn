@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { investments, investmentTransactions, type NewInvestment, type NewInvestmentTransaction } from "@/lib/schema";
+import { investments, investmentTransactions, users, type NewInvestment, type NewInvestmentTransaction } from "@/lib/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -10,6 +10,25 @@ import YahooFinance from "yahoo-finance2";
 const yahooFinance = new YahooFinance({
   suppressNotices: ["yahooSurvey", "ripHistorical"],
 });
+
+/**
+ * Get exchange rate between two currencies
+ */
+export async function getExchangeRate(from: string, to: string): Promise<number> {
+  if (from === to) return 1;
+  
+  try {
+    const symbol = `${from}${to}=X`;
+    const quote = await yahooFinance.quote(symbol);
+    return quote.regularMarketPrice || 1;
+  } catch (error) {
+    console.error(`Failed to fetch exchange rate for ${from} to ${to}:`, error);
+    // Fallback rates for common pairs if Yahoo fails
+    if (from === "USD" && to === "INR") return 83;
+    if (from === "INR" && to === "USD") return 1/83;
+    return 1;
+  }
+}
 
 /**
  * Search for stocks/investments using Yahoo Finance
@@ -501,6 +520,15 @@ export async function getPortfolioSummary() {
   }
 
   try {
+    // Get user's default currency
+    const userData = await db
+      .select({ defaultCurrency: users.defaultCurrency })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    
+    const userCurrency = userData[0]?.defaultCurrency || "USD";
+
     const userInvestments = await db
       .select()
       .from(investments)
@@ -517,12 +545,29 @@ export async function getPortfolioSummary() {
       totalGainLoss: 0,
       totalGainLossPercent: 0,
       investmentCount: userInvestments.length,
+      currency: userCurrency,
     };
 
+    // Cache exchange rates to avoid redundant calls
+    const exchangeRates: Record<string, number> = {};
+
     for (const inv of userInvestments) {
-      summary.totalInvested += Number(inv.totalInvested || 0);
-      summary.currentValue += Number(inv.currentValue || 0);
-      summary.totalGainLoss += Number(inv.totalGainLoss || 0);
+      const invCurrency = inv.currency || "USD";
+      let rate = 1;
+
+      if (invCurrency !== userCurrency) {
+        const cacheKey = `${invCurrency}_${userCurrency}`;
+        if (exchangeRates[cacheKey]) {
+          rate = exchangeRates[cacheKey];
+        } else {
+          rate = await getExchangeRate(invCurrency, userCurrency);
+          exchangeRates[cacheKey] = rate;
+        }
+      }
+
+      summary.totalInvested += Number(inv.totalInvested || 0) * rate;
+      summary.currentValue += Number(inv.currentValue || 0) * rate;
+      summary.totalGainLoss += Number(inv.totalGainLoss || 0) * rate;
     }
 
     summary.totalGainLossPercent = summary.totalInvested > 0 

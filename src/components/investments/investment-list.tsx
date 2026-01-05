@@ -9,6 +9,7 @@ import type { Investment } from "@/lib/schema";
 import { SellTransactionDialog } from "./sell-transaction-dialog";
 import { refreshInvestmentPrices } from "@/actions/investments";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/utils";
 
 interface InvestmentListProps {
   investments: Investment[];
@@ -101,7 +102,7 @@ export function InvestmentList({ investments: initialInvestments }: InvestmentLi
                     <div className="flex justify-between items-baseline">
                       <span className="text-sm text-muted-foreground">Current Value</span>
                       <span className="text-2xl font-bold">
-                        {investment.currency} {currentValue.toFixed(2)}
+                        {formatCurrency(currentValue, { currency: investment.currency || "USD" })}
                       </span>
                     </div>
 
@@ -113,14 +114,14 @@ export function InvestmentList({ investments: initialInvestments }: InvestmentLi
                     <div className="flex justify-between items-baseline">
                       <span className="text-sm text-muted-foreground">Current Price</span>
                       <span className="text-sm font-medium">
-                        {investment.currency} {currentPrice.toFixed(2)}
+                        {formatCurrency(currentPrice, { currency: investment.currency || "USD" })}
                       </span>
                     </div>
 
                     <div className="flex justify-between items-baseline">
                       <span className="text-sm text-muted-foreground">Avg. Price</span>
                       <span className="text-sm font-medium">
-                        {investment.currency} {Number(investment.averagePrice).toFixed(2)}
+                        {formatCurrency(Number(investment.averagePrice), { currency: investment.currency || "USD" })}
                       </span>
                     </div>
                   </div>
@@ -139,14 +140,14 @@ export function InvestmentList({ investments: initialInvestments }: InvestmentLi
                             isProfit ? "text-green-500" : "text-red-500"
                           }`}
                         >
-                          {investment.currency} {Math.abs(totalGainLoss).toFixed(2)} (
+                          {formatCurrency(Math.abs(totalGainLoss), { currency: investment.currency || "USD" })} (
                           {totalGainLossPercent.toFixed(2)}%)
                         </span>
                       </div>
                     </div>
 
                     <div className="flex justify-between items-baseline text-xs text-muted-foreground">
-                      <span>Invested: {investment.currency} {totalInvested.toFixed(2)}</span>
+                      <span>Invested: {formatCurrency(totalInvested, { currency: investment.currency || "USD" })}</span>
                       {investment.lastUpdated && (
                         <span>
                           Updated: {new Date(investment.lastUpdated).toLocaleDateString()}

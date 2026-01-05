@@ -27,15 +27,13 @@ import { recordSellTransaction, getStockPrice } from "@/actions/investments";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import type { Investment } from "@/lib/schema";
+import { formatCurrency } from "@/lib/utils";
 
 const sellTransactionSchema = z.object({
   investmentId: z.number(),
   quantity: z.coerce.number().positive("Quantity must be positive"),
   price: z.coerce.number().positive("Price must be positive"),
-  fees: z.coerce.number().min(0).optional(),
-  taxes: z.coerce.number().min(0).optional(),
   date: z.string().min(1, "Date is required"),
-  time: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -61,10 +59,7 @@ export function SellTransactionDialog({
       investmentId: investment.id,
       quantity: 0,
       price: Number(investment.currentPrice) || 0,
-      fees: 0,
-      taxes: 0,
       date: new Date().toISOString().split("T")[0],
-      time: new Date().toTimeString().split(" ")[0].slice(0, 5),
       notes: "",
     },
   });
@@ -75,7 +70,7 @@ export function SellTransactionDialog({
       const priceResult = await getStockPrice(investment.symbol);
       if (priceResult.success && priceResult.data) {
         form.setValue("price", priceResult.data.price);
-        toast.success(`Current price: ${priceResult.data.currency} ${priceResult.data.price}`);
+        toast.success(`Current price: ${formatCurrency(priceResult.data.price, { currency: priceResult.data.currency })}`);
       } else {
         toast.error("Failed to fetch current price");
       }
@@ -177,37 +172,7 @@ export function SellTransactionDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="fees"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fees</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} placeholder="0.00" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="taxes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Taxes</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} placeholder="0.00" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
                   name="date"
@@ -216,20 +181,6 @@ export function SellTransactionDialog({
                       <FormLabel>Date</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time (Optional)</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -259,29 +210,15 @@ export function SellTransactionDialog({
                   <span>{form.watch("quantity") || 0}</span>
                   <span className="text-muted-foreground">Price per unit:</span>
                   <span>
-                    {investment.currency} {form.watch("price") || 0}
+                    {formatCurrency(form.watch("price") || 0, { currency: investment.currency || "USD" })}
                   </span>
                   <span className="text-muted-foreground">Subtotal:</span>
                   <span>
-                    {investment.currency}{" "}
-                    {((form.watch("quantity") || 0) * (form.watch("price") || 0)).toFixed(2)}
-                  </span>
-                  <span className="text-muted-foreground">Fees:</span>
-                  <span>
-                    {investment.currency} {form.watch("fees") || 0}
-                  </span>
-                  <span className="text-muted-foreground">Taxes:</span>
-                  <span>
-                    {investment.currency} {form.watch("taxes") || 0}
+                    {formatCurrency((form.watch("quantity") || 0) * (form.watch("price") || 0), { currency: investment.currency || "USD" })}
                   </span>
                   <span className="font-medium">Total Proceeds:</span>
                   <span className="font-medium">
-                    {investment.currency}{" "}
-                    {(
-                      (form.watch("quantity") || 0) * (form.watch("price") || 0) -
-                      (form.watch("fees") || 0) -
-                      (form.watch("taxes") || 0)
-                    ).toFixed(2)}
+                    {formatCurrency((form.watch("quantity") || 0) * (form.watch("price") || 0), { currency: investment.currency || "USD" })}
                   </span>
                 </div>
               </div>

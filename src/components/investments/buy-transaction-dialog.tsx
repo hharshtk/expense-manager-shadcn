@@ -34,6 +34,7 @@ import {
 import { searchInvestments, recordBuyTransaction, getStockPrice } from "@/actions/investments";
 import { toast } from "sonner";
 import { Loader2, Search, TrendingUp } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -44,11 +45,8 @@ const buyTransactionSchema = z.object({
   exchange: z.string().optional(),
   quantity: z.coerce.number().positive("Quantity must be positive"),
   price: z.coerce.number().positive("Price must be positive"),
-  fees: z.coerce.number().min(0).optional(),
-  taxes: z.coerce.number().min(0).optional(),
   currency: z.string().default("USD"),
   date: z.string().min(1, "Date is required"),
-  time: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -71,11 +69,8 @@ export function BuyTransactionDialog() {
       exchange: "",
       quantity: 0,
       price: 0,
-      fees: 0,
-      taxes: 0,
       currency: "USD",
       date: new Date().toISOString().split("T")[0],
-      time: new Date().toTimeString().split(" ")[0].slice(0, 5),
       notes: "",
     },
   });
@@ -115,7 +110,7 @@ export function BuyTransactionDialog() {
       if (priceResult.success && priceResult.data) {
         form.setValue("price", priceResult.data.price);
         form.setValue("currency", priceResult.data.currency);
-        toast.success(`Current price: ${priceResult.data.currency} ${priceResult.data.price}`);
+        toast.success(`Current price: ${formatCurrency(priceResult.data.price, { currency: priceResult.data.currency })}`);
       }
     } catch (error) {
       console.error("Failed to fetch price:", error);
@@ -211,7 +206,7 @@ export function BuyTransactionDialog() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
                   name="symbol"
@@ -219,35 +214,8 @@ export function BuyTransactionDialog() {
                     <FormItem>
                       <FormLabel>Symbol</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="AAPL" />
+                        <Input {...field} placeholder="AAPL" readOnly className="bg-muted" />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="stock">Stock</SelectItem>
-                          <SelectItem value="mutual_fund">Mutual Fund</SelectItem>
-                          <SelectItem value="etf">ETF</SelectItem>
-                          <SelectItem value="bond">Bond</SelectItem>
-                          <SelectItem value="crypto">Cryptocurrency</SelectItem>
-                          <SelectItem value="commodity">Commodity</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -261,7 +229,7 @@ export function BuyTransactionDialog() {
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Apple Inc." />
+                      <Input {...field} placeholder="Apple Inc." readOnly className="bg-muted" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -309,35 +277,7 @@ export function BuyTransactionDialog() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="fees"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fees</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} placeholder="0.00" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="taxes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Taxes</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} placeholder="0.00" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="currency"
@@ -345,15 +285,13 @@ export function BuyTransactionDialog() {
                     <FormItem>
                       <FormLabel>Currency</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="USD" />
+                        <Input {...field} placeholder="USD" readOnly className="bg-muted" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="date"
@@ -362,20 +300,6 @@ export function BuyTransactionDialog() {
                       <FormLabel>Date</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time (Optional)</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

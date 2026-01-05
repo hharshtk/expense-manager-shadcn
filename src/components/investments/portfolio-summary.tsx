@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 interface PortfolioSummaryProps {
   summary: {
@@ -10,11 +11,13 @@ interface PortfolioSummaryProps {
     totalGainLoss: number;
     totalGainLossPercent: number;
     investmentCount: number;
+    currency?: string;
   };
 }
 
 export function PortfolioSummary({ summary }: PortfolioSummaryProps) {
   const isProfit = summary.totalGainLoss >= 0;
+  const currency = summary.currency || "USD";
 
   return (
     <div className="grid gap-4 md:grid-cols-4">
@@ -25,7 +28,7 @@ export function PortfolioSummary({ summary }: PortfolioSummaryProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            ${summary.totalInvested.toFixed(2)}
+            {formatCurrency(summary.totalInvested, { currency })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Across {summary.investmentCount} investment{summary.investmentCount !== 1 ? "s" : ""}
@@ -40,7 +43,7 @@ export function PortfolioSummary({ summary }: PortfolioSummaryProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            ${summary.currentValue.toFixed(2)}
+            {formatCurrency(summary.currentValue, { currency })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Market value of holdings
@@ -59,7 +62,7 @@ export function PortfolioSummary({ summary }: PortfolioSummaryProps) {
         </CardHeader>
         <CardContent>
           <div className={`text-2xl font-bold ${isProfit ? "text-green-500" : "text-red-500"}`}>
-            {isProfit ? "+" : ""}${summary.totalGainLoss.toFixed(2)}
+            {isProfit ? "+" : ""}{formatCurrency(summary.totalGainLoss, { currency })}
           </div>
           <p className={`text-xs mt-1 ${isProfit ? "text-green-500" : "text-red-500"}`}>
             {isProfit ? "+" : ""}{summary.totalGainLossPercent.toFixed(2)}% return

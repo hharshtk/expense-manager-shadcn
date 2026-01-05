@@ -31,6 +31,7 @@ export default async function InvestmentPage() {
         totalGainLoss: 0,
         totalGainLossPercent: 0,
         investmentCount: 0,
+        currency: "USD",
       };
 
   return (
