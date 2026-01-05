@@ -265,7 +265,7 @@ async function createInteractiveDemo() {
         console.log(`  Category: ${summary.fundProfile.categoryName}`);
         console.log(`  Family: ${summary.fundProfile.family}`);
         console.log(`  Net Assets: ${currencySymbol}${summary.fundProfile.netAssets?.toLocaleString()}`);
-        console.log(`  Yield: ${(summary.fundProfile.yield * 100)?.toFixed(2)}%`);
+        console.log(`  Yield: ${typeof summary.fundProfile.yield === 'number' ? (summary.fundProfile.yield * 100).toFixed(2) : 'N/A'}%`);
         console.log(`  Inception Date: ${summary.fundProfile.inceptionDate}`);
       } else if (summary.assetProfile && !isMutualFund) {
         console.log('\nCompany Profile:');
@@ -279,7 +279,7 @@ async function createInteractiveDemo() {
       if (summary.financialData && !isMutualFund) {
         console.log('\nFinancial Data:');
         console.log(`  Revenue: ${currencySymbol}${summary.financialData.totalRevenue?.toLocaleString()}`);
-        console.log(`  Profit Margin: ${(summary.financialData.profitMargins * 100)?.toFixed(2)}%`);
+        console.log(`  Profit Margin: ${typeof summary.financialData.profitMargins === 'number' ? (summary.financialData.profitMargins * 100).toFixed(2) : 'N/A'}%`);
       }
     } else {
       console.log('Failed to get company/fund information.');

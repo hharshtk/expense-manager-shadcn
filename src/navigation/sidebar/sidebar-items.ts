@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   SquareArrowUpRight,
   Tags,
+  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
@@ -77,6 +78,12 @@ export const sidebarItems: NavGroup[] = [
         title: "Categories",
         url: "/dashboard/categories",
         icon: Tags,
+      },
+      {
+        title: "Investment",
+        url: "/dashboard/investment",
+        icon: TrendingUp,
+        isNew: true,
       },
       {
         title: "AI Chat",

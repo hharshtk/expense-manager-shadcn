@@ -39,6 +39,16 @@ export const accountTypeEnum = pgEnum("account_type", [
   "other",
 ]);
 export const budgetPeriodEnum = pgEnum("budget_period", ["daily", "weekly", "monthly", "quarterly", "yearly"]);
+export const investmentTypeEnum = pgEnum("investment_type", [
+  "stock",
+  "mutual_fund",
+  "etf",
+  "bond",
+  "crypto",
+  "commodity",
+  "other",
+]);
+export const transactionTypeEnum = pgEnum("transaction_type", ["buy", "sell", "dividend", "split", "bonus"]);
 
 // ============================================================================
 // USERS & AUTHENTICATION
@@ -359,6 +369,83 @@ export const savingsGoals = pgTable(
 
 export const messageRoleEnum = pgEnum("message_role", ["user", "assistant", "system"]);
 
+// ============================================================================
+// INVESTMENTS
+// ============================================================================
+
+/**
+ * Investments - Track investment holdings (stocks, mutual funds, etc.)
+ */
+export const investments = pgTable(
+  "investments",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 20 }).notNull(), // e.g., AAPL, RELIANCE.NS
+    name: varchar("name", { length: 255 }).notNull(),
+    type: investmentTypeEnum("type").notNull().default("stock"),
+    exchange: varchar("exchange", { length: 50 }), // e.g., NASDAQ, NSE, BSE
+    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    totalQuantity: decimal("total_quantity", { precision: 15, scale: 4 }).default("0"),
+    averagePrice: decimal("average_price", { precision: 15, scale: 4 }).default("0"),
+    currentPrice: decimal("current_price", { precision: 15, scale: 4 }),
+    totalInvested: decimal("total_invested", { precision: 15, scale: 2 }).default("0"),
+    currentValue: decimal("current_value", { precision: 15, scale: 2 }),
+    totalGainLoss: decimal("total_gain_loss", { precision: 15, scale: 2 }),
+    totalGainLossPercent: decimal("total_gain_loss_percent", { precision: 10, scale: 2 }),
+    lastUpdated: timestamp("last_updated"),
+    notes: text("notes"),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_investments_user_id").on(table.userId),
+    index("idx_investments_symbol").on(table.symbol),
+    uniqueIndex("idx_investments_user_symbol").on(table.userId, table.symbol),
+  ],
+);
+
+/**
+ * Investment Transactions - Buy/Sell transactions for investments
+ */
+export const investmentTransactions = pgTable(
+  "investment_transactions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    investmentId: integer("investment_id")
+      .notNull()
+      .references(() => investments.id, { onDelete: "cascade" }),
+    type: transactionTypeEnum("type").notNull(),
+    quantity: decimal("quantity", { precision: 15, scale: 4 }).notNull(),
+    price: decimal("price", { precision: 15, scale: 4 }).notNull(),
+    totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+    fees: decimal("fees", { precision: 15, scale: 2 }).default("0"),
+    taxes: decimal("taxes", { precision: 15, scale: 2 }).default("0"),
+    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    date: date("date").notNull(),
+    time: varchar("time", { length: 8 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_investment_transactions_user_id").on(table.userId),
+    index("idx_investment_transactions_investment_id").on(table.investmentId),
+    index("idx_investment_transactions_date").on(table.date),
+    index("idx_investment_transactions_type").on(table.type),
+  ],
+);
+
+// ============================================================================
+// CHAT - CONVERSATIONS
+// ============================================================================
+
 /**
  * Conversations - Chat conversations for AI chatbot
  */
@@ -415,6 +502,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   tags: many(tags),
   savingsGoals: many(savingsGoals),
   conversations: many(conversations),
+  investments: many(investments),
+  investmentTransactions: many(investmentTransactions),
 }));
 
 export const oauthAccountsRelations = relations(oauthAccounts, ({ one }) => ({
@@ -545,6 +634,25 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
+export const investmentsRelations = relations(investments, ({ one, many }) => ({
+  user: one(users, {
+    fields: [investments.userId],
+    references: [users.id],
+  }),
+  transactions: many(investmentTransactions),
+}));
+
+export const investmentTransactionsRelations = relations(investmentTransactions, ({ one }) => ({
+  user: one(users, {
+    fields: [investmentTransactions.userId],
+    references: [users.id],
+  }),
+  investment: one(investments, {
+    fields: [investmentTransactions.investmentId],
+    references: [investments.id],
+  }),
+}));
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -575,3 +683,7 @@ export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type Investment = typeof investments.$inferSelect;
+export type NewInvestment = typeof investments.$inferInsert;
+export type InvestmentTransaction = typeof investmentTransactions.$inferSelect;
+export type NewInvestmentTransaction = typeof investmentTransactions.$inferInsert;
