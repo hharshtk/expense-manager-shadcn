@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -33,15 +33,18 @@ import {
 } from "@/components/ui/select";
 import { searchInvestments, recordBuyTransaction, getStockPrice } from "@/actions/investments";
 import { toast } from "sonner";
-import { Loader2, Search, TrendingUp } from "lucide-react";
+import { Loader2, Search, TrendingUp, AlertCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { Portfolio } from "@/lib/schema";
 
 const buyTransactionSchema = z.object({
   symbol: z.string().min(1, "Symbol is required"),
   name: z.string().min(1, "Name is required"),
   type: z.enum(["stock", "mutual_fund", "etf", "bond", "crypto", "commodity", "other"]),
+  portfolioId: z.coerce.number().min(1, "Portfolio is required"),
   exchange: z.string().optional(),
   quantity: z.coerce.number().positive("Quantity must be positive"),
   price: z.coerce.number().positive("Price must be positive"),
@@ -52,7 +55,12 @@ const buyTransactionSchema = z.object({
 
 type BuyTransactionForm = z.infer<typeof buyTransactionSchema>;
 
-export function BuyTransactionDialog() {
+interface BuyTransactionDialogProps {
+  portfolios: Portfolio[];
+  defaultPortfolioId?: number;
+}
+
+export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTransactionDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -66,6 +74,7 @@ export function BuyTransactionDialog() {
       symbol: "",
       name: "",
       type: "stock",
+      portfolioId: defaultPortfolioId || 0,
       exchange: "",
       quantity: 0,
       price: 0,
@@ -74,6 +83,13 @@ export function BuyTransactionDialog() {
       notes: "",
     },
   });
+
+  // Update default portfolio when prop changes
+  useEffect(() => {
+    if (defaultPortfolioId) {
+      form.setValue("portfolioId", defaultPortfolioId);
+    }
+  }, [defaultPortfolioId, form]);
 
   const handleSearch = async (query: string) => {
     if (query.length < 2) {
@@ -120,6 +136,11 @@ export function BuyTransactionDialog() {
   };
 
   const onSubmit = async (data: BuyTransactionForm) => {
+    if (!data.portfolioId || data.portfolioId === 0) {
+      toast.error("Please select a portfolio");
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await recordBuyTransaction(data);
@@ -137,6 +158,8 @@ export function BuyTransactionDialog() {
     }
   };
 
+  const hasNoPortfolios = portfolios.length === 0;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -152,52 +175,96 @@ export function BuyTransactionDialog() {
             Record a purchase of stocks, mutual funds, or other investments
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-4">
-              <FormField
-                control={form.control}
-                name="symbol"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Search Stock/Investment</FormLabel>
-                    <FormControl>
-                      <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className="w-full justify-between"
-                          >
-                            {field.value || "Search for a stock..."}
-                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-full p-0" align="start">
-                          <Command shouldFilter={false}>
-                            <CommandInput
-                              placeholder="Search stocks..."
-                              onValueChange={handleSearch}
-                            />
-                            <CommandEmpty>
-                              {searchLoading ? "Searching..." : "No stocks found"}
-                            </CommandEmpty>
-                            <CommandGroup className="max-h-64 overflow-auto">
-                              {searchResults.map((stock, index) => (
-                                <CommandItem
-                                  key={`${stock.symbol}-${index}`}
-                                  onSelect={() => handleSelectStock(stock)}
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{stock.symbol}</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      {stock.name}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </Command>
+
+        {hasNoPortfolios ? (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              You need to create a portfolio first before adding investments. Please create a portfolio from the main investment page.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-4">
+                {/* Portfolio Selection - Required */}
+                <FormField
+                  control={form.control}
+                  name="portfolioId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Portfolio *</FormLabel>
+                      <Select
+                        onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                        value={field.value?.toString() || ""}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a portfolio" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {portfolios.map((portfolio) => (
+                            <SelectItem key={portfolio.id} value={portfolio.id.toString()}>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: portfolio.color || "#6366f1" }}
+                                />
+                                {portfolio.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="symbol"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Search Stock/Investment</FormLabel>
+                      <FormControl>
+                        <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between"
+                            >
+                              {field.value || "Search for a stock..."}
+                              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0" align="start">
+                            <Command shouldFilter={false}>
+                              <CommandInput
+                                placeholder="Search stocks..."
+                                onValueChange={handleSearch}
+                              />
+                              <CommandEmpty>
+                                {searchLoading ? "Searching..." : "No stocks found"}
+                              </CommandEmpty>
+                              <CommandGroup className="max-h-64 overflow-auto">
+                                {searchResults.map((stock, index) => (
+                                  <CommandItem
+                                    key={`${stock.symbol}-${index}`}
+                                    onSelect={() => handleSelectStock(stock)}
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{stock.symbol}</span>
+                                      <span className="text-sm text-muted-foreground">
+                                        {stock.name}
+                                      </span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </Command>
                         </PopoverContent>
                       </Popover>
                     </FormControl>
@@ -333,6 +400,7 @@ export function BuyTransactionDialog() {
             </DialogFooter>
           </form>
         </Form>
+        )}
       </DialogContent>
     </Dialog>
   );

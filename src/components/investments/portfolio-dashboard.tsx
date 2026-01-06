@@ -33,6 +33,7 @@ interface PortfolioDashboardProps {
     currency: string;
   };
   showActionsOnly?: boolean;
+  hidePortfolioSelector?: boolean;
   selectedPortfolioId?: number | null;
   onPortfolioChange?: (id: number | null) => void;
 }
@@ -42,6 +43,7 @@ export function PortfolioDashboard({
   portfolios, 
   summary: globalSummary, 
   showActionsOnly = false,
+  hidePortfolioSelector = false,
   selectedPortfolioId: externalSelectedPortfolioId,
   onPortfolioChange: externalOnPortfolioChange
 }: PortfolioDashboardProps) {
@@ -144,7 +146,7 @@ export function PortfolioDashboard({
           )}
           <span className="ml-2">Refresh</span>
         </Button>
-        <BuyTransactionDialog />
+        <BuyTransactionDialog portfolios={portfolios} />
       </div>
     );
   }

@@ -79,12 +79,18 @@ export function AddPurchaseDialog({ investment, open, onOpenChange }: AddPurchas
   }, [open, investment.symbol, form]);
 
   const onSubmit = async (data: AddPurchaseForm) => {
+    if (!investment.portfolioId) {
+      toast.error("This investment is not assigned to a portfolio. Please assign it to a portfolio first.");
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await recordBuyTransaction({
         symbol: investment.symbol,
         name: investment.name,
         type: investment.type as "stock" | "mutual_fund" | "etf" | "bond" | "crypto" | "commodity" | "other",
+        portfolioId: investment.portfolioId,
         exchange: investment.exchange || undefined,
         currency: investment.currency || "USD",
         quantity: data.quantity,

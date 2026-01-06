@@ -352,12 +352,34 @@ function calculateInvestmentMetrics(transactions: any[], currentPrice: number) {
 
 /**
  * Create a new investment or get existing one
+ * Returns { success: true, investment } or { success: false, error }
  */
-async function createOrGetInvestment(userId: number, data: NewInvestment) {
-  // Check if investment already exists
-  const existing = await db
+async function createOrGetInvestment(userId: number, portfolioId: number, data: Omit<NewInvestment, 'portfolioId'>): Promise<{ success: true; investment: typeof investments.$inferSelect } | { success: false; error: string }> {
+  // Check if investment already exists for this symbol and portfolio
+  const existingInPortfolio = await db
     .select()
     .from(investments)
+    .where(
+      and(
+        eq(investments.userId, userId),
+        eq(investments.symbol, data.symbol),
+        eq(investments.portfolioId, portfolioId)
+      )
+    )
+    .limit(1);
+
+  if (existingInPortfolio.length > 0) {
+    return { success: true, investment: existingInPortfolio[0] };
+  }
+
+  // Check if the symbol exists in a different portfolio (due to unique constraint)
+  const existingElsewhere = await db
+    .select({
+      investment: investments,
+      portfolio: portfolios,
+    })
+    .from(investments)
+    .leftJoin(portfolios, eq(investments.portfolioId, portfolios.id))
     .where(
       and(
         eq(investments.userId, userId),
@@ -366,17 +388,24 @@ async function createOrGetInvestment(userId: number, data: NewInvestment) {
     )
     .limit(1);
 
-  if (existing.length > 0) {
-    return existing[0];
+  if (existingElsewhere.length > 0) {
+    const existingPortfolioName = existingElsewhere[0].portfolio?.name || "another portfolio";
+    return { 
+      success: false, 
+      error: `${data.symbol} already exists in "${existingPortfolioName}". Please add more shares there or move it to this portfolio first.` 
+    };
   }
 
   // Create new investment
   const newInvestment = await db
     .insert(investments)
-    .values(data)
+    .values({
+      ...data,
+      portfolioId,
+    })
     .returning();
 
-  return newInvestment[0];
+  return { success: true, investment: newInvestment[0] };
 }
 
 /**
@@ -386,6 +415,7 @@ export async function recordBuyTransaction(data: {
   symbol: string;
   name: string;
   type: "stock" | "mutual_fund" | "etf" | "bond" | "crypto" | "commodity" | "other";
+  portfolioId: number;
   exchange?: string;
   quantity: number;
   price: number;
@@ -401,9 +431,26 @@ export async function recordBuyTransaction(data: {
     return { success: false, error: "Unauthorized" };
   }
 
+  // Validate portfolio ownership
+  const portfolio = await db
+    .select()
+    .from(portfolios)
+    .where(
+      and(
+        eq(portfolios.id, data.portfolioId),
+        eq(portfolios.userId, user.id),
+        eq(portfolios.isActive, true)
+      )
+    )
+    .limit(1);
+
+  if (portfolio.length === 0) {
+    return { success: false, error: "Portfolio not found or not owned by user" };
+  }
+
   try {
     // Get or create investment
-    const investment = await createOrGetInvestment(user.id, {
+    const investmentResult = await createOrGetInvestment(user.id, data.portfolioId, {
       userId: user.id,
       symbol: data.symbol,
       name: data.name,
@@ -415,6 +462,12 @@ export async function recordBuyTransaction(data: {
       totalInvested: "0",
       isActive: true,
     });
+
+    if (!investmentResult.success) {
+      return { success: false, error: investmentResult.error };
+    }
+
+    const investment = investmentResult.investment;
 
     // Create transaction
     const totalAmount = data.quantity * data.price + (data.fees || 0) + (data.taxes || 0);
@@ -953,6 +1006,98 @@ export async function getPortfolios() {
   } catch (error) {
     console.error("Get portfolios error:", error);
     return { success: false, error: "Failed to fetch portfolios" };
+  }
+}
+
+/**
+ * Get a specific portfolio by ID
+ */
+export async function getPortfolioById(id: number) {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    const portfolio = await db
+      .select()
+      .from(portfolios)
+      .where(
+        and(
+          eq(portfolios.id, id),
+          eq(portfolios.userId, user.id),
+          eq(portfolios.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (portfolio.length === 0) {
+      return { success: false, error: "Portfolio not found" };
+    }
+
+    return { success: true, data: portfolio[0] };
+  } catch (error) {
+    console.error("Get portfolio by id error:", error);
+    return { success: false, error: "Failed to fetch portfolio" };
+  }
+}
+
+/**
+ * Get all investments for a specific portfolio with transactions
+ */
+export async function getInvestmentsByPortfolio(portfolioId: number) {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    // Verify portfolio ownership
+    const portfolio = await db
+      .select()
+      .from(portfolios)
+      .where(
+        and(
+          eq(portfolios.id, portfolioId),
+          eq(portfolios.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (portfolio.length === 0) {
+      return { success: false, error: "Portfolio not found" };
+    }
+
+    const portfolioInvestments = await db
+      .select()
+      .from(investments)
+      .where(
+        and(
+          eq(investments.userId, user.id),
+          eq(investments.portfolioId, portfolioId)
+        )
+      )
+      .orderBy(desc(investments.currentValue));
+
+    const investmentsWithTxns = await Promise.all(
+      portfolioInvestments.map(async (inv) => {
+        const txns = await db
+          .select()
+          .from(investmentTransactions)
+          .where(eq(investmentTransactions.investmentId, inv.id))
+          .orderBy(desc(investmentTransactions.date));
+        
+        return {
+          ...inv,
+          transactions: txns,
+        };
+      })
+    );
+
+    return { success: true, data: investmentsWithTxns };
+  } catch (error) {
+    console.error("Get investments by portfolio error:", error);
+    return { success: false, error: "Failed to fetch investments" };
   }
 }
 

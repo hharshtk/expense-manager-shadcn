@@ -44,12 +44,14 @@ interface PortfolioSelectorProps {
   portfolios: Portfolio[];
   selectedPortfolioId: number | null;
   onPortfolioChange: (portfolioId: number | null) => void;
+  showCreateOnly?: boolean;
 }
 
 export function PortfolioSelector({ 
   portfolios, 
   selectedPortfolioId, 
-  onPortfolioChange 
+  onPortfolioChange,
+  showCreateOnly = false,
 }: PortfolioSelectorProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -130,6 +132,13 @@ export function PortfolioSelector({
 
   return (
     <div className="flex items-center gap-2">
+      {/* Show only Create button when showCreateOnly is true */}
+      {showCreateOnly ? (
+        <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Portfolio
+        </Button>
+      ) : (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className="min-w-[180px] justify-between">
@@ -200,6 +209,7 @@ export function PortfolioSelector({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
 
       {/* Create Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
