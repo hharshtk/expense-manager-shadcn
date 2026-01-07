@@ -18,7 +18,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/seed-db.ts"
+    "devtools": "npx @ai-sdk/devtools"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
@@ -26,6 +26,7 @@
     ]
   },
   "dependencies": {
+    "@ai-sdk/devtools": "^0.0.4",
     "@ai-sdk/gateway": "^3.0.5",
     "@ai-sdk/openai": "^3.0.2",
     "@ai-sdk/react": "^3.0.6",

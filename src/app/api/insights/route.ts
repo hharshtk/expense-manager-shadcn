@@ -1,36 +1,304 @@
-import { ToolLoopAgent, tool } from "ai";
+import { ToolLoopAgent, tool, wrapLanguageModel } from "ai";
 import { createGateway } from "@ai-sdk/gateway";
+import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { conversations, messages, expenses, investments, budgets, categories, financialAccounts } from "@/lib/schema";
+import { conversations, messages, expenses, investments, budgets, categories, financialAccounts, users } from "@/lib/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { eq, desc, gte, lte, and, sql, sum } from "drizzle-orm";
+import { eq, desc, gte, lte, and, sql, sum, between, asc } from "drizzle-orm";
 
 // Create Vercel AI Gateway provider
 const gateway = createGateway({
   apiKey: process.env.AI_GATEWAY_API_KEY,
 });
 
+// Wrap the model with DevTools middleware for debugging (development only)
+const baseModel = gateway("openai/gpt-4o-mini");
+const wrappedModel = process.env.NODE_ENV === 'development' 
+  ? wrapLanguageModel({
+      model: baseModel,
+      middleware: devToolsMiddleware(),
+    })
+  : baseModel;
+
+// Helper function to format currency
+function formatCurrency(amount: string | number | null, currency: string): string {
+  if (amount === null) return `0.00 ${currency}`;
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return `${num.toFixed(2)} ${currency}`;
+}
+
+// Helper function to get date range for period
+function getDateRangeForPeriod(period: string, timezone: string): { startDate: string; endDate: string; periodLabel: string } {
+  const now = new Date();
+  // Apply timezone offset for accurate date calculations
+  const formatter = new Intl.DateTimeFormat('en-CA', { 
+    timeZone: timezone, 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit' 
+  });
+  const todayStr = formatter.format(now);
+  const [year, month, day] = todayStr.split('-').map(Number);
+  
+  switch (period) {
+    case 'today':
+      return { startDate: todayStr, endDate: todayStr, periodLabel: `Today (${todayStr})` };
+    case 'this_week': {
+      const startOfWeek = new Date(year, month - 1, day - now.getDay());
+      const endOfWeek = new Date(year, month - 1, day + (6 - now.getDay()));
+      return { 
+        startDate: startOfWeek.toISOString().split('T')[0], 
+        endDate: endOfWeek.toISOString().split('T')[0],
+        periodLabel: `This Week (${startOfWeek.toISOString().split('T')[0]} to ${endOfWeek.toISOString().split('T')[0]})`
+      };
+    }
+    case 'this_month': {
+      const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      return { startDate: startOfMonth, endDate: endOfMonth, periodLabel: `This Month (${new Date(year, month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })})` };
+    }
+    case 'last_month': {
+      const lastMonth = month === 1 ? 12 : month - 1;
+      const lastMonthYear = month === 1 ? year - 1 : year;
+      const startOfLastMonth = `${lastMonthYear}-${String(lastMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(lastMonthYear, lastMonth, 0).getDate();
+      const endOfLastMonth = `${lastMonthYear}-${String(lastMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      return { startDate: startOfLastMonth, endDate: endOfLastMonth, periodLabel: `Last Month (${new Date(lastMonthYear, lastMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })})` };
+    }
+    case 'this_quarter': {
+      const quarter = Math.floor((month - 1) / 3);
+      const startMonth = quarter * 3 + 1;
+      const endMonth = startMonth + 2;
+      const startOfQuarter = `${year}-${String(startMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, endMonth, 0).getDate();
+      const endOfQuarter = `${year}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      return { startDate: startOfQuarter, endDate: endOfQuarter, periodLabel: `Q${quarter + 1} ${year}` };
+    }
+    case 'this_year': {
+      const startOfYear = `${year}-01-01`;
+      const endOfYear = `${year}-12-31`;
+      return { startDate: startOfYear, endDate: endOfYear, periodLabel: `Year ${year}` };
+    }
+    case 'last_year': {
+      const startOfLastYear = `${year - 1}-01-01`;
+      const endOfLastYear = `${year - 1}-12-31`;
+      return { startDate: startOfLastYear, endDate: endOfLastYear, periodLabel: `Year ${year - 1}` };
+    }
+    default:
+      return { startDate: todayStr, endDate: todayStr, periodLabel: 'Custom Period' };
+  }
+}
+
 // Define tools for the insights agent
 const insightsTools = {
+  getUserContext: tool({
+    description: "ALWAYS call this tool FIRST before any other tool. Gets the user's settings including their preferred currency, timezone, locale, date format, and current date/time in their timezone. This context is essential for accurate date-based queries and proper currency formatting.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const [userData] = await db
+        .select({
+          defaultCurrency: users.defaultCurrency,
+          timezone: users.timezone,
+          locale: users.locale,
+          dateFormat: users.dateFormat,
+        })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+
+      const timezone = userData?.timezone || "UTC";
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', { 
+        timeZone: timezone, 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+      });
+      const timeFormatter = new Intl.DateTimeFormat('en-US', { 
+        timeZone: timezone, 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      
+      const currentDate = formatter.format(now);
+      const currentTime = timeFormatter.format(now);
+      const [year, month] = currentDate.split('-').map(Number);
+      const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
+
+      return {
+        currency: userData?.defaultCurrency || "USD",
+        currencySymbol: getCurrencySymbol(userData?.defaultCurrency || "USD"),
+        timezone: timezone,
+        locale: userData?.locale || "en-US",
+        dateFormat: userData?.dateFormat || "MM/DD/YYYY",
+        currentDateTime: {
+          date: currentDate,
+          time: currentTime,
+          dayOfWeek: new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'long' }).format(now),
+          monthName: monthName,
+          year: year,
+          month: month,
+        },
+        dateRanges: {
+          thisMonth: getDateRangeForPeriod('this_month', timezone),
+          lastMonth: getDateRangeForPeriod('last_month', timezone),
+          thisWeek: getDateRangeForPeriod('this_week', timezone),
+          thisQuarter: getDateRangeForPeriod('this_quarter', timezone),
+          thisYear: getDateRangeForPeriod('this_year', timezone),
+        }
+      };
+    },
+  }),
+
   getExpenseSummary: tool({
-    description: "Get a summary of expenses for a given time period",
+    description: "Get a comprehensive summary of expenses for a specific time period. Use the predefined periods from getUserContext for accurate date ranges. Returns total spent, transaction count, average per transaction, and daily average.",
     inputSchema: z.object({
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      categoryId: z.number().optional(),
+      startDate: z.string().describe("Start date in YYYY-MM-DD format. Get this from getUserContext dateRanges."),
+      endDate: z.string().describe("End date in YYYY-MM-DD format. Get this from getUserContext dateRanges."),
+      categoryId: z.number().optional().describe("Optional: Filter by specific category ID"),
     }),
     execute: async ({ startDate, endDate, categoryId }) => {
       const user = await getCurrentUser();
       if (!user) throw new Error("Unauthorized");
 
-      let conditions = [eq(expenses.userId, user.id), eq(expenses.type, "expense")];
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
 
-      if (startDate) conditions.push(gte(expenses.date, startDate));
-      if (endDate) conditions.push(lte(expenses.date, endDate));
+      let conditions = [eq(expenses.userId, user.id), eq(expenses.type, "expense")];
+      conditions.push(gte(expenses.date, startDate));
+      conditions.push(lte(expenses.date, endDate));
       if (categoryId) conditions.push(eq(expenses.categoryId, categoryId));
 
       const result = await db
+        .select({
+          total: sum(expenses.amount),
+          count: sql<number>`count(*)`,
+          avgAmount: sql<number>`avg(${expenses.amount})`,
+          minAmount: sql<number>`min(${expenses.amount})`,
+          maxAmount: sql<number>`max(${expenses.amount})`,
+        })
+        .from(expenses)
+        .where(and(...conditions));
+
+      // Calculate days in period
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const daysInPeriod = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      const totalAmount = parseFloat(result[0]?.total || "0");
+      const dailyAverage = totalAmount / daysInPeriod;
+
+      return {
+        period: { startDate, endDate, daysInPeriod },
+        currency,
+        totalExpenses: formatCurrency(totalAmount, currency),
+        transactionCount: result[0]?.count || 0,
+        averagePerTransaction: formatCurrency(result[0]?.avgAmount, currency),
+        dailyAverage: formatCurrency(dailyAverage, currency),
+        smallestExpense: formatCurrency(result[0]?.minAmount, currency),
+        largestExpense: formatCurrency(result[0]?.maxAmount, currency),
+      };
+    },
+  }),
+
+  getExpensesByCategory: tool({
+    description: "Get expenses grouped by category for a specific period. Returns a breakdown showing each category's spending, percentage of total, and transaction count. Perfect for understanding where money is going.",
+    inputSchema: z.object({
+      startDate: z.string().describe("Start date in YYYY-MM-DD format"),
+      endDate: z.string().describe("End date in YYYY-MM-DD format"),
+      limit: z.number().default(15).describe("Maximum categories to return (default 15)"),
+    }),
+    execute: async ({ startDate, endDate, limit }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      let conditions = [eq(expenses.userId, user.id), eq(expenses.type, "expense")];
+      conditions.push(gte(expenses.date, startDate));
+      conditions.push(lte(expenses.date, endDate));
+
+      // Get total for percentage calculation
+      const [totalResult] = await db
+        .select({ total: sum(expenses.amount) })
+        .from(expenses)
+        .where(and(...conditions));
+      const grandTotal = parseFloat(totalResult?.total || "0");
+
+      const result = await db
+        .select({
+          categoryId: expenses.categoryId,
+          categoryName: categories.name,
+          categoryIcon: categories.icon,
+          categoryColor: categories.color,
+          total: sum(expenses.amount),
+          count: sql<number>`count(*)`,
+          avgAmount: sql<number>`avg(${expenses.amount})`,
+        })
+        .from(expenses)
+        .leftJoin(categories, eq(expenses.categoryId, categories.id))
+        .where(and(...conditions))
+        .groupBy(expenses.categoryId, categories.name, categories.icon, categories.color)
+        .orderBy(desc(sum(expenses.amount)))
+        .limit(limit);
+
+      return {
+        period: { startDate, endDate },
+        currency,
+        grandTotal: formatCurrency(grandTotal, currency),
+        categoryBreakdown: result.map((row, index) => {
+          const amount = parseFloat(row.total || "0");
+          return {
+            rank: index + 1,
+            categoryName: row.categoryName || "Uncategorized",
+            categoryIcon: row.categoryIcon,
+            amount: formatCurrency(amount, currency),
+            percentageOfTotal: grandTotal > 0 ? `${((amount / grandTotal) * 100).toFixed(1)}%` : "0%",
+            transactionCount: row.count,
+            averagePerTransaction: formatCurrency(row.avgAmount, currency),
+          };
+        }),
+      };
+    },
+  }),
+
+  getIncomeSummary: tool({
+    description: "Get a summary of income for a specific time period. Returns total income, transaction count, and breakdown by category.",
+    inputSchema: z.object({
+      startDate: z.string().describe("Start date in YYYY-MM-DD format"),
+      endDate: z.string().describe("End date in YYYY-MM-DD format"),
+    }),
+    execute: async ({ startDate, endDate }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      let conditions = [eq(expenses.userId, user.id), eq(expenses.type, "income")];
+      conditions.push(gte(expenses.date, startDate));
+      conditions.push(lte(expenses.date, endDate));
+
+      const [totalResult] = await db
         .select({
           total: sum(expenses.amount),
           count: sql<number>`count(*)`,
@@ -38,33 +306,8 @@ const insightsTools = {
         .from(expenses)
         .where(and(...conditions));
 
-      return {
-        totalExpenses: result[0]?.total || "0",
-        transactionCount: result[0]?.count || 0,
-        period: { startDate, endDate },
-      };
-    },
-  }),
-
-  getExpensesByCategory: tool({
-    description: "Get expenses grouped by category for analysis",
-    inputSchema: z.object({
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      limit: z.number().default(10),
-    }),
-    execute: async ({ startDate, endDate, limit }) => {
-      const user = await getCurrentUser();
-      if (!user) throw new Error("Unauthorized");
-
-      let conditions = [eq(expenses.userId, user.id), eq(expenses.type, "expense")];
-
-      if (startDate) conditions.push(gte(expenses.date, startDate));
-      if (endDate) conditions.push(lte(expenses.date, endDate));
-
-      const result = await db
+      const incomeByCategory = await db
         .select({
-          categoryId: expenses.categoryId,
           categoryName: categories.name,
           total: sum(expenses.amount),
           count: sql<number>`count(*)`,
@@ -72,89 +315,306 @@ const insightsTools = {
         .from(expenses)
         .leftJoin(categories, eq(expenses.categoryId, categories.id))
         .where(and(...conditions))
-        .groupBy(expenses.categoryId, categories.name)
-        .orderBy(desc(sum(expenses.amount)))
-        .limit(limit);
+        .groupBy(categories.name)
+        .orderBy(desc(sum(expenses.amount)));
 
-      return result.map(row => ({
-        categoryId: row.categoryId,
-        categoryName: row.categoryName || "Uncategorized",
-        total: row.total,
-        transactionCount: row.count,
-      }));
+      return {
+        period: { startDate, endDate },
+        currency,
+        totalIncome: formatCurrency(totalResult?.total, currency),
+        transactionCount: totalResult?.count || 0,
+        incomeBySource: incomeByCategory.map(row => ({
+          source: row.categoryName || "Other Income",
+          amount: formatCurrency(row.total, currency),
+          transactionCount: row.count,
+        })),
+      };
+    },
+  }),
+
+  getNetCashFlow: tool({
+    description: "Calculate net cash flow (income minus expenses) for a period. Shows income, expenses, and the difference.",
+    inputSchema: z.object({
+      startDate: z.string().describe("Start date in YYYY-MM-DD format"),
+      endDate: z.string().describe("End date in YYYY-MM-DD format"),
+    }),
+    execute: async ({ startDate, endDate }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      const results = await db
+        .select({
+          type: expenses.type,
+          total: sum(expenses.amount),
+        })
+        .from(expenses)
+        .where(and(
+          eq(expenses.userId, user.id),
+          gte(expenses.date, startDate),
+          lte(expenses.date, endDate)
+        ))
+        .groupBy(expenses.type);
+
+      const income = parseFloat(results.find(r => r.type === 'income')?.total || "0");
+      const expenseTotal = parseFloat(results.find(r => r.type === 'expense')?.total || "0");
+      const netCashFlow = income - expenseTotal;
+
+      return {
+        period: { startDate, endDate },
+        currency,
+        totalIncome: formatCurrency(income, currency),
+        totalExpenses: formatCurrency(expenseTotal, currency),
+        netCashFlow: formatCurrency(netCashFlow, currency),
+        status: netCashFlow >= 0 ? "SURPLUS" : "DEFICIT",
+        savingsRate: income > 0 ? `${((netCashFlow / income) * 100).toFixed(1)}%` : "N/A",
+      };
     },
   }),
 
   getInvestmentSummary: tool({
-    description: "Get investment portfolio summary",
+    description: "Get a comprehensive investment portfolio summary including total invested, current value, gains/losses, and breakdown by investment.",
     inputSchema: z.object({}),
     execute: async () => {
       const user = await getCurrentUser();
       if (!user) throw new Error("Unauthorized");
 
-      const result = await db
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      const [summary] = await db
         .select({
           totalInvested: sum(investments.totalInvested),
           currentValue: sum(investments.currentValue),
           totalGainLoss: sum(investments.totalGainLoss),
+          count: sql<number>`count(*)`,
         })
         .from(investments)
         .where(and(eq(investments.userId, user.id), eq(investments.isActive, true)));
 
+      const holdingsList = await db
+        .select({
+          symbol: investments.symbol,
+          name: investments.name,
+          type: investments.type,
+          totalInvested: investments.totalInvested,
+          currentValue: investments.currentValue,
+          totalGainLoss: investments.totalGainLoss,
+          totalGainLossPercent: investments.totalGainLossPercent,
+          totalQuantity: investments.totalQuantity,
+          currentPrice: investments.currentPrice,
+        })
+        .from(investments)
+        .where(and(eq(investments.userId, user.id), eq(investments.isActive, true)))
+        .orderBy(desc(investments.currentValue))
+        .limit(10);
+
+      const totalInvested = parseFloat(summary?.totalInvested || "0");
+      const currentValue = parseFloat(summary?.currentValue || "0");
+      const totalGainLoss = parseFloat(summary?.totalGainLoss || "0");
+      const returnPercent = totalInvested > 0 ? ((totalGainLoss / totalInvested) * 100) : 0;
+
       return {
-        totalInvested: result[0]?.totalInvested || "0",
-        currentValue: result[0]?.currentValue || "0",
-        totalGainLoss: result[0]?.totalGainLoss || "0",
+        currency,
+        portfolioSummary: {
+          totalInvested: formatCurrency(totalInvested, currency),
+          currentValue: formatCurrency(currentValue, currency),
+          totalGainLoss: formatCurrency(totalGainLoss, currency),
+          returnPercentage: `${returnPercent.toFixed(2)}%`,
+          numberOfHoldings: summary?.count || 0,
+          status: totalGainLoss >= 0 ? "PROFIT" : "LOSS",
+        },
+        topHoldings: holdingsList.map((h, index) => ({
+          rank: index + 1,
+          symbol: h.symbol,
+          name: h.name,
+          type: h.type,
+          invested: formatCurrency(h.totalInvested, currency),
+          currentValue: formatCurrency(h.currentValue, currency),
+          gainLoss: formatCurrency(h.totalGainLoss, currency),
+          returnPercent: `${parseFloat(h.totalGainLossPercent || "0").toFixed(2)}%`,
+        })),
       };
     },
   }),
 
   getBudgetStatus: tool({
-    description: "Get budget status and spending against budgets",
-    inputSchema: z.object({}),
-    execute: async () => {
+    description: "Get detailed budget status showing all active budgets with their spending, remaining amounts, and progress. Essential for budget tracking and analysis.",
+    inputSchema: z.object({
+      includeInactive: z.boolean().default(false).describe("Include inactive budgets"),
+    }),
+    execute: async ({ includeInactive }) => {
       const user = await getCurrentUser();
       if (!user) throw new Error("Unauthorized");
 
-      const budgetsWithSpending = await db
+      const [userData] = await db
+        .select({ 
+          defaultCurrency: users.defaultCurrency,
+          timezone: users.timezone 
+        })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+      const timezone = userData?.timezone || "UTC";
+
+      // Get current date in user's timezone
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', { 
+        timeZone: timezone, 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+      });
+      const currentDate = formatter.format(now);
+
+      let budgetConditions = [eq(budgets.userId, user.id)];
+      if (!includeInactive) {
+        budgetConditions.push(eq(budgets.isActive, true));
+      }
+
+      const budgetList = await db
         .select({
-          budgetId: budgets.id,
-          budgetName: budgets.name,
-          budgetAmount: budgets.amount,
-          spent: sql<number>`coalesce(sum(${expenses.amount}), 0)`,
+          id: budgets.id,
+          name: budgets.name,
+          amount: budgets.amount,
+          period: budgets.period,
+          startDate: budgets.startDate,
+          endDate: budgets.endDate,
+          categoryId: budgets.categoryId,
+          categoryName: categories.name,
+          alertThreshold: budgets.alertThreshold,
+          isActive: budgets.isActive,
         })
         .from(budgets)
-        .leftJoin(expenses, and(
-          eq(expenses.budgetId, budgets.id),
-          eq(expenses.userId, user.id),
-          eq(expenses.type, "expense")
-        ))
-        .where(eq(budgets.userId, user.id))
-        .groupBy(budgets.id, budgets.name, budgets.amount);
+        .leftJoin(categories, eq(budgets.categoryId, categories.id))
+        .where(and(...budgetConditions))
+        .orderBy(budgets.name);
 
-      return budgetsWithSpending.map(budget => ({
-        id: budget.budgetId,
-        name: budget.budgetName,
-        budgeted: budget.budgetAmount,
-        spent: budget.spent,
-        remaining: Number(budget.budgetAmount) - budget.spent,
-        percentUsed: (budget.spent / Number(budget.budgetAmount)) * 100,
-      }));
+      // For each budget, calculate spending within its period
+      const budgetsWithSpending = await Promise.all(
+        budgetList.map(async (budget) => {
+          // Determine date range based on budget period
+          let periodStart = budget.startDate;
+          let periodEnd = budget.endDate || currentDate;
+
+          // For recurring budgets, calculate current period
+          if (budget.period !== 'daily') {
+            const dateRange = getDateRangeForPeriod(
+              budget.period === 'monthly' ? 'this_month' : 
+              budget.period === 'weekly' ? 'this_week' : 
+              budget.period === 'quarterly' ? 'this_quarter' : 
+              budget.period === 'yearly' ? 'this_year' : 'this_month',
+              timezone
+            );
+            periodStart = dateRange.startDate;
+            periodEnd = dateRange.endDate;
+          }
+
+          // Get spending for this budget's category in the period
+          let spendingConditions = [
+            eq(expenses.userId, user.id),
+            eq(expenses.type, "expense"),
+            gte(expenses.date, periodStart),
+            lte(expenses.date, periodEnd),
+          ];
+          
+          if (budget.categoryId) {
+            spendingConditions.push(eq(expenses.categoryId, budget.categoryId));
+          }
+
+          const [spending] = await db
+            .select({ total: sum(expenses.amount) })
+            .from(expenses)
+            .where(and(...spendingConditions));
+
+          const budgetAmount = parseFloat(budget.amount);
+          const spent = parseFloat(spending?.total || "0");
+          const remaining = budgetAmount - spent;
+          const percentUsed = (spent / budgetAmount) * 100;
+          const alertThreshold = budget.alertThreshold || 80;
+
+          let status: "ON_TRACK" | "WARNING" | "EXCEEDED" | "CRITICAL";
+          if (percentUsed >= 100) status = "EXCEEDED";
+          else if (percentUsed >= alertThreshold) status = "WARNING";
+          else if (percentUsed >= alertThreshold - 10) status = "CRITICAL";
+          else status = "ON_TRACK";
+
+          return {
+            budgetName: budget.name,
+            category: budget.categoryName || "All Categories",
+            period: budget.period,
+            periodRange: `${periodStart} to ${periodEnd}`,
+            budgetAmount: formatCurrency(budgetAmount, currency),
+            spent: formatCurrency(spent, currency),
+            remaining: formatCurrency(remaining, currency),
+            percentUsed: `${percentUsed.toFixed(1)}%`,
+            status,
+            isActive: budget.isActive,
+          };
+        })
+      );
+
+      // Summary statistics
+      const totalBudgeted = budgetsWithSpending.reduce((sum, b) => sum + parseFloat(b.budgetAmount), 0);
+      const totalSpent = budgetsWithSpending.reduce((sum, b) => sum + parseFloat(b.spent), 0);
+      const exceededCount = budgetsWithSpending.filter(b => b.status === "EXCEEDED").length;
+      const warningCount = budgetsWithSpending.filter(b => b.status === "WARNING").length;
+
+      return {
+        currency,
+        currentDate,
+        summary: {
+          totalBudgets: budgetsWithSpending.length,
+          totalBudgeted: formatCurrency(totalBudgeted, currency),
+          totalSpent: formatCurrency(totalSpent, currency),
+          overallPercentUsed: `${((totalSpent / totalBudgeted) * 100).toFixed(1)}%`,
+          budgetsExceeded: exceededCount,
+          budgetsAtWarning: warningCount,
+          budgetsOnTrack: budgetsWithSpending.length - exceededCount - warningCount,
+        },
+        budgets: budgetsWithSpending,
+      };
     },
   }),
 
   getRecentTransactions: tool({
-    description: "Get recent transactions for analysis",
+    description: "Get recent transactions with full details including category, merchant, and amounts. Useful for detailed transaction analysis.",
     inputSchema: z.object({
-      limit: z.number().default(20),
-      type: z.enum(["expense", "income"]).optional(),
+      limit: z.number().default(20).describe("Number of transactions to return (default 20, max 50)"),
+      type: z.enum(["expense", "income", "all"]).default("all").describe("Filter by transaction type"),
+      startDate: z.string().optional().describe("Optional: Start date filter (YYYY-MM-DD)"),
+      endDate: z.string().optional().describe("Optional: End date filter (YYYY-MM-DD)"),
+      categoryId: z.number().optional().describe("Optional: Filter by category ID"),
     }),
-    execute: async ({ limit, type }) => {
+    execute: async ({ limit, type, startDate, endDate, categoryId }) => {
       const user = await getCurrentUser();
       if (!user) throw new Error("Unauthorized");
 
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      const actualLimit = Math.min(limit, 50);
       let conditions = [eq(expenses.userId, user.id)];
-      if (type) conditions.push(eq(expenses.type, type));
+      
+      if (type !== "all") conditions.push(eq(expenses.type, type));
+      if (startDate) conditions.push(gte(expenses.date, startDate));
+      if (endDate) conditions.push(lte(expenses.date, endDate));
+      if (categoryId) conditions.push(eq(expenses.categoryId, categoryId));
 
       const transactions = await db
         .select({
@@ -162,34 +622,339 @@ const insightsTools = {
           amount: expenses.amount,
           description: expenses.description,
           date: expenses.date,
+          time: expenses.time,
           type: expenses.type,
           categoryName: categories.name,
+          categoryIcon: categories.icon,
           merchant: expenses.merchant,
+          location: expenses.location,
+          notes: expenses.notes,
         })
         .from(expenses)
         .leftJoin(categories, eq(expenses.categoryId, categories.id))
         .where(and(...conditions))
-        .orderBy(desc(expenses.date))
+        .orderBy(desc(expenses.date), desc(expenses.time))
+        .limit(actualLimit);
+
+      return {
+        currency,
+        transactionCount: transactions.length,
+        transactions: transactions.map((t, index) => ({
+          number: index + 1,
+          date: t.date,
+          time: t.time || "",
+          type: t.type.toUpperCase(),
+          amount: formatCurrency(t.amount, currency),
+          description: t.description || "No description",
+          category: t.categoryName || "Uncategorized",
+          merchant: t.merchant || "",
+          location: t.location || "",
+        })),
+      };
+    },
+  }),
+
+  getSpendingTrend: tool({
+    description: "Analyze spending trends over time. Compares current period with previous period to show if spending is increasing or decreasing.",
+    inputSchema: z.object({
+      period: z.enum(["week", "month", "quarter"]).describe("Period to analyze"),
+    }),
+    execute: async ({ period }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const [userData] = await db
+        .select({ 
+          defaultCurrency: users.defaultCurrency,
+          timezone: users.timezone 
+        })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+      const timezone = userData?.timezone || "UTC";
+
+      let currentRange: { startDate: string; endDate: string; periodLabel: string };
+      let previousRange: { startDate: string; endDate: string; periodLabel: string };
+
+      if (period === "month") {
+        currentRange = getDateRangeForPeriod('this_month', timezone);
+        previousRange = getDateRangeForPeriod('last_month', timezone);
+      } else if (period === "week") {
+        currentRange = getDateRangeForPeriod('this_week', timezone);
+        // Calculate last week
+        const lastWeekStart = new Date(currentRange.startDate);
+        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+        const lastWeekEnd = new Date(currentRange.endDate);
+        lastWeekEnd.setDate(lastWeekEnd.getDate() - 7);
+        previousRange = {
+          startDate: lastWeekStart.toISOString().split('T')[0],
+          endDate: lastWeekEnd.toISOString().split('T')[0],
+          periodLabel: "Last Week"
+        };
+      } else {
+        currentRange = getDateRangeForPeriod('this_quarter', timezone);
+        // Calculate last quarter
+        const [year, month] = currentRange.startDate.split('-').map(Number);
+        const lastQuarterMonth = month - 3;
+        const lastQuarterYear = lastQuarterMonth < 1 ? year - 1 : year;
+        const adjustedMonth = lastQuarterMonth < 1 ? lastQuarterMonth + 12 : lastQuarterMonth;
+        previousRange = {
+          startDate: `${lastQuarterYear}-${String(adjustedMonth).padStart(2, '0')}-01`,
+          endDate: `${lastQuarterYear}-${String(adjustedMonth + 2).padStart(2, '0')}-${new Date(lastQuarterYear, adjustedMonth + 2, 0).getDate()}`,
+          periodLabel: "Last Quarter"
+        };
+      }
+
+      // Get current period spending
+      const [currentSpending] = await db
+        .select({ total: sum(expenses.amount), count: sql<number>`count(*)` })
+        .from(expenses)
+        .where(and(
+          eq(expenses.userId, user.id),
+          eq(expenses.type, "expense"),
+          gte(expenses.date, currentRange.startDate),
+          lte(expenses.date, currentRange.endDate)
+        ));
+
+      // Get previous period spending
+      const [previousSpending] = await db
+        .select({ total: sum(expenses.amount), count: sql<number>`count(*)` })
+        .from(expenses)
+        .where(and(
+          eq(expenses.userId, user.id),
+          eq(expenses.type, "expense"),
+          gte(expenses.date, previousRange.startDate),
+          lte(expenses.date, previousRange.endDate)
+        ));
+
+      const currentTotal = parseFloat(currentSpending?.total || "0");
+      const previousTotal = parseFloat(previousSpending?.total || "0");
+      const change = currentTotal - previousTotal;
+      const changePercent = previousTotal > 0 ? ((change / previousTotal) * 100) : 0;
+
+      return {
+        currency,
+        currentPeriod: {
+          label: currentRange.periodLabel,
+          dateRange: `${currentRange.startDate} to ${currentRange.endDate}`,
+          totalSpent: formatCurrency(currentTotal, currency),
+          transactionCount: currentSpending?.count || 0,
+        },
+        previousPeriod: {
+          label: previousRange.periodLabel,
+          dateRange: `${previousRange.startDate} to ${previousRange.endDate}`,
+          totalSpent: formatCurrency(previousTotal, currency),
+          transactionCount: previousSpending?.count || 0,
+        },
+        comparison: {
+          absoluteChange: formatCurrency(change, currency),
+          percentageChange: `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(1)}%`,
+          trend: change > 0 ? "INCREASED" : change < 0 ? "DECREASED" : "UNCHANGED",
+          insight: change > 0 
+            ? `Spending increased by ${formatCurrency(Math.abs(change), currency)} (${Math.abs(changePercent).toFixed(1)}%) compared to ${previousRange.periodLabel.toLowerCase()}`
+            : change < 0 
+            ? `Spending decreased by ${formatCurrency(Math.abs(change), currency)} (${Math.abs(changePercent).toFixed(1)}%) compared to ${previousRange.periodLabel.toLowerCase()}`
+            : "Spending remained the same",
+        },
+      };
+    },
+  }),
+
+  getTopMerchants: tool({
+    description: "Get top merchants/vendors by spending amount for a given period.",
+    inputSchema: z.object({
+      startDate: z.string().describe("Start date in YYYY-MM-DD format"),
+      endDate: z.string().describe("End date in YYYY-MM-DD format"),
+      limit: z.number().default(10).describe("Number of merchants to return"),
+    }),
+    execute: async ({ startDate, endDate, limit }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      const merchants = await db
+        .select({
+          merchant: expenses.merchant,
+          total: sum(expenses.amount),
+          count: sql<number>`count(*)`,
+          avgAmount: sql<number>`avg(${expenses.amount})`,
+        })
+        .from(expenses)
+        .where(and(
+          eq(expenses.userId, user.id),
+          eq(expenses.type, "expense"),
+          gte(expenses.date, startDate),
+          lte(expenses.date, endDate),
+          sql`${expenses.merchant} IS NOT NULL AND ${expenses.merchant} != ''`
+        ))
+        .groupBy(expenses.merchant)
+        .orderBy(desc(sum(expenses.amount)))
         .limit(limit);
 
-      return transactions;
+      return {
+        period: { startDate, endDate },
+        currency,
+        topMerchants: merchants.map((m, index) => ({
+          rank: index + 1,
+          merchant: m.merchant,
+          totalSpent: formatCurrency(m.total, currency),
+          transactionCount: m.count,
+          averageTransaction: formatCurrency(m.avgAmount, currency),
+        })),
+      };
+    },
+  }),
+
+  getAllCategories: tool({
+    description: "Get all expense and income categories available for the user. Useful for understanding categorization options.",
+    inputSchema: z.object({
+      type: z.enum(["expense", "income", "all"]).default("all").describe("Filter by category type"),
+    }),
+    execute: async ({ type }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      let conditions = [eq(categories.isActive, true)];
+      if (type !== "all") {
+        conditions.push(eq(categories.type, type));
+      }
+
+      const categoryList = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          type: categories.type,
+          icon: categories.icon,
+          color: categories.color,
+          isSystem: categories.isSystem,
+        })
+        .from(categories)
+        .where(and(
+          sql`(${categories.userId} = ${user.id} OR ${categories.isSystem} = true)`,
+          ...conditions
+        ))
+        .orderBy(categories.type, categories.name);
+
+      return {
+        categories: categoryList.map(c => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+          icon: c.icon,
+          isSystemCategory: c.isSystem,
+        })),
+      };
     },
   }),
 };
 
-// Create the insights agent
+// Helper function to get currency symbol
+function getCurrencySymbol(currency: string): string {
+  const symbols: Record<string, string> = {
+    USD: "$", EUR: "€", GBP: "£", INR: "₹", JPY: "¥", 
+    CAD: "C$", AUD: "A$", CHF: "Fr", CNY: "¥", BRL: "R$",
+  };
+  return symbols[currency] || currency;
+}
+
+// Create the insights agent with enhanced instructions
 const insightsAgent = new ToolLoopAgent({
-  model: gateway("openai/gpt-4o-mini"),
-  instructions: `You are a financial insights assistant that helps users understand their spending patterns, investment performance, and budget status.
+  model: wrappedModel,
+  instructions: `You are an expert financial insights assistant for a personal finance management application. Your role is to help users understand their spending patterns, track budgets, analyze investments, and make informed financial decisions.
 
-Your capabilities:
-- Analyze spending patterns and trends
-- Provide insights on budget performance
-- Help with investment analysis
-- Generate financial reports and summaries
-- Answer questions about financial data
+## CRITICAL: ALWAYS START BY CALLING getUserContext
+Before answering ANY question about finances, dates, or money, you MUST first call the \`getUserContext\` tool to get:
+- The user's preferred currency (use this for ALL monetary values)
+- The user's timezone (use this for accurate date calculations)
+- The current date/time in their timezone
+- Pre-calculated date ranges for common periods (this month, last month, etc.)
 
-Always be helpful, accurate, and provide actionable insights. Use the available tools to gather data before providing analysis. Format your responses clearly with sections and bullet points when appropriate.`,
+## Date Handling Rules
+- When user says "this month", use the dateRanges.thisMonth from getUserContext
+- When user says "last month", use the dateRanges.lastMonth from getUserContext
+- When user says "this week", use the dateRanges.thisWeek from getUserContext
+- ALWAYS use the exact startDate and endDate from these pre-calculated ranges
+- NEVER assume or hardcode dates - always use the context provided
+
+## Response Formatting Guidelines
+Present data in a clear, organized manner using these formats:
+
+### For Category Breakdowns - Use Tables:
+| Category | Amount | % of Total | Transactions |
+|----------|--------|------------|--------------|
+| Groceries | $450.00 | 25.5% | 12 |
+| Dining | $320.00 | 18.1% | 8 |
+
+### For Budget Status - Use Tables with Status Indicators:
+| Budget | Allocated | Spent | Remaining | Status |
+|--------|-----------|-------|-----------|--------|
+| Groceries | $500 | $450 | $50 | ⚠️ 90% used |
+| Entertainment | $200 | $150 | $50 | ✅ On track |
+
+### For Comparisons - Use Clear Sections:
+**📊 This Month vs Last Month**
+- Current: $2,500 (45 transactions)
+- Previous: $2,100 (38 transactions)  
+- Change: +$400 (+19.0%) 📈
+
+### Status Indicators:
+- ✅ ON_TRACK - Under 70% of budget
+- ⚠️ WARNING - 70-90% of budget  
+- 🔴 EXCEEDED - Over 100% of budget
+- 📈 INCREASED - Spending went up
+- 📉 DECREASED - Spending went down
+- 💰 SURPLUS - Positive cash flow
+- 🔻 DEFICIT - Negative cash flow
+
+## Response Structure
+1. **Summary** - Start with a brief overview of key findings
+2. **Detailed Data** - Present data in tables when there are 3+ items
+3. **Insights** - Provide 2-3 actionable insights based on the data
+4. **Recommendations** - If relevant, suggest actions the user could take
+
+## Budget Awareness
+- Always check budget status when discussing spending
+- Warn users if they're approaching or exceeding budgets
+- Compare spending against budgets when relevant
+- Highlight categories that are over budget
+
+## Currency Handling
+- ALWAYS display amounts in the user's preferred currency
+- Include the currency symbol before amounts
+- Format numbers with proper thousands separators when needed
+
+## Example Responses
+
+**Good Response:**
+"Based on your spending this month (January 2026), here's your breakdown:
+
+**📊 Spending Summary**
+- Total Spent: $2,450.00
+- Transactions: 42
+- Daily Average: $79.03
+
+**📋 Top Categories**
+| Category | Amount | % of Total |
+|----------|--------|------------|
+| Groceries | $580.00 | 23.7% |
+| Dining | $420.00 | 17.1% |
+| Utilities | $350.00 | 14.3% |
+
+**⚠️ Budget Alert**
+Your Dining budget is at 84% - consider reducing restaurant visits.
+
+**💡 Insights**
+1. Groceries remain your largest expense at nearly 1/4 of spending
+2. Dining spending is up 15% from last month"
+
+Remember: Be concise, use proper formatting, and always provide actionable insights.`,
   tools: insightsTools,
 });
 

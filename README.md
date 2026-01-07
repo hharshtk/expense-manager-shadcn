@@ -112,6 +112,36 @@ _Deploy your own copy with one click._
 
 Your app will be running at [http://localhost:3000](http://localhost:3000)
 
+### AI SDK DevTools (Debugging)
+
+This project includes AI SDK DevTools for debugging AI interactions in the insights feature. DevTools provides full visibility over LLM requests, responses, tool calls, and multi-step interactions.
+
+**⚠️ Warning:** DevTools is experimental and intended for local development only. Do not use in production environments.
+
+**To debug AI interactions:**
+
+1. **Start the DevTools viewer** (in a separate terminal):
+   ```bash
+   npm run devtools
+   ```
+   or
+   ```bash
+   pnpm devtools
+   ```
+
+2. **Open the DevTools UI** at [http://localhost:4983](http://localhost:4983)
+
+3. **Use the insights chat** in your app to trigger AI interactions
+
+**What DevTools captures:**
+- Input parameters and prompts sent to the LLM
+- Output content and tool invocations
+- Token usage and timing information
+- Raw provider request/response data
+- Multi-step agent interactions (runs and steps)
+
+DevTools automatically stores data locally in `.devtools/generations.json` and adds `.devtools` to your `.gitignore`.
+
 ### Formatting and Linting
 
 Format, lint, and organize imports
