@@ -89,14 +89,22 @@ export function createColumns({ onDelete, onUpdate, onEdit, userSettings }: Colu
       accessorKey: "description",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
       cell: ({ row }) => {
+        const description = row.original.description;
+        const notes = row.original.notes;
+
         return (
-          <Button
-            variant="link"
-            className="w-fit px-0 text-left text-foreground"
-            onClick={() => onEdit(row.original)}
-          >
-            {row.original.description || "No description"}
-          </Button>
+          <div className="flex flex-col gap-1">
+            {description && (
+              <div className="text-sm truncate max-w-48" title={description}>
+                {description}
+              </div>
+            )}
+            {notes && (
+              <div className="text-[10px] text-muted-foreground/70 italic truncate max-w-48" title={notes}>
+                {notes}
+              </div>
+            )}
+          </div>
         );
       },
       enableSorting: false,
