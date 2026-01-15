@@ -31,14 +31,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { searchInvestments, recordBuyTransaction, getStockPrice } from "@/actions/investments";
 import { toast } from "sonner";
-import { Loader2, Search, TrendingUp, AlertCircle } from "lucide-react";
+import { Loader2, Search, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Portfolio } from "@/lib/schema";
+
+type AssetTab = "stock" | "etf" | "mutual_fund";
+type CountryFilter = "US" | "IN";
+
+const COUNTRY_OPTIONS: { value: CountryFilter; label: string; flag: string }[] = [
+  { value: "US", label: "USA", flag: "🇺🇸" },
+  { value: "IN", label: "India", flag: "🇮🇳" },
+];
 
 const buyTransactionSchema = z.object({
   symbol: z.string().min(1, "Symbol is required"),
@@ -67,6 +76,8 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [activeTab, setActiveTab] = useState<AssetTab>("stock");
+  const [selectedCountry, setSelectedCountry] = useState<CountryFilter>("US");
 
   const form = useForm<BuyTransactionForm>({
     resolver: zodResolver(buyTransactionSchema),
@@ -84,6 +95,20 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
     },
   });
 
+  // Reset form when tab changes
+  useEffect(() => {
+    form.setValue("symbol", "");
+    form.setValue("name", "");
+    form.setValue("exchange", "");
+    form.setValue("type", activeTab);
+    setSearchResults([]);
+  }, [activeTab, form]);
+
+  // Reset search results when country changes
+  useEffect(() => {
+    setSearchResults([]);
+  }, [selectedCountry]);
+
   // Update default portfolio when prop changes
   useEffect(() => {
     if (defaultPortfolioId) {
@@ -99,7 +124,10 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
 
     setSearchLoading(true);
     try {
-      const result = await searchInvestments(query);
+      const result = await searchInvestments(query, {
+        assetType: activeTab,
+        country: activeTab === "stock" ? selectedCountry : undefined,
+      });
       if (result.success && result.data) {
         setSearchResults(result.data);
       } else {
@@ -172,7 +200,7 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
         <DialogHeader>
           <DialogTitle>Record Buy Transaction</DialogTitle>
           <DialogDescription>
-            Record a purchase of stocks, mutual funds, or other investments
+            Add stocks, ETFs, or mutual funds to your portfolio
           </DialogDescription>
         </DialogHeader>
 
@@ -184,52 +212,87 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
             </AlertDescription>
           </Alert>
         ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-4">
-                {/* Portfolio Selection - Required */}
-                <FormField
-                  control={form.control}
-                  name="portfolioId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Portfolio *</FormLabel>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as AssetTab)} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="stock">Stocks</TabsTrigger>
+              <TabsTrigger value="etf">ETFs</TabsTrigger>
+              <TabsTrigger value="mutual_fund">Mutual Funds</TabsTrigger>
+            </TabsList>
+            
+            {/* Stocks Tab Content */}
+            <TabsContent value="stock" className="space-y-4 mt-4">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <div className="space-y-4">
+                    {/* Portfolio Selection - Required */}
+                    <FormField
+                      control={form.control}
+                      name="portfolioId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Portfolio *</FormLabel>
+                          <Select
+                            onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                            value={field.value?.toString() || ""}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a portfolio" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {portfolios.map((portfolio) => (
+                                <SelectItem key={portfolio.id} value={portfolio.id.toString()}>
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-2 h-2 rounded-full"
+                                      style={{ backgroundColor: portfolio.color || "#6366f1" }}
+                                    />
+                                    {portfolio.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Country Filter for Stocks */}
+                    <div className="space-y-2">
+                      <FormLabel>Country</FormLabel>
                       <Select
-                        onValueChange={(value) => field.onChange(parseInt(value, 10))}
-                        value={field.value?.toString() || ""}
+                        value={selectedCountry}
+                        onValueChange={(v) => setSelectedCountry(v as CountryFilter)}
                       >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a portfolio" />
-                          </SelectTrigger>
-                        </FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
                         <SelectContent>
-                          {portfolios.map((portfolio) => (
-                            <SelectItem key={portfolio.id} value={portfolio.id.toString()}>
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="w-2 h-2 rounded-full"
-                                  style={{ backgroundColor: portfolio.color || "#6366f1" }}
-                                />
-                                {portfolio.name}
-                              </div>
+                          {COUNTRY_OPTIONS.map((country) => (
+                            <SelectItem key={country.value} value={country.value}>
+                              <span className="flex items-center gap-2">
+                                <span>{country.flag}</span>
+                                <span>{country.label}</span>
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      <p className="text-xs text-muted-foreground">
+                        Search will be restricted to {selectedCountry === "US" ? "US" : "Indian"} stock exchanges
+                      </p>
+                    </div>
 
-                <FormField
-                  control={form.control}
-                  name="symbol"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Search Stock/Investment</FormLabel>
-                      <FormControl>
-                        <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                    <FormField
+                      control={form.control}
+                      name="symbol"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Search Stock</FormLabel>
+                          <FormControl>
+                            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -389,17 +452,47 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
               />
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Record Purchase
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={loading}>
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Record Purchase
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </TabsContent>
+
+            {/* ETFs Tab Content - Coming Soon */}
+            <TabsContent value="etf" className="mt-4">
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <Clock className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">ETFs Coming Soon</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  ETF tracking is under development. You&apos;ll soon be able to add and track
+                  Exchange-Traded Funds in your portfolio.
+                </p>
+              </div>
+            </TabsContent>
+
+            {/* Mutual Funds Tab Content - Coming Soon */}
+            <TabsContent value="mutual_fund" className="mt-4">
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <Clock className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Mutual Funds Coming Soon</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Mutual fund tracking is under development. You&apos;ll soon be able to add and track
+                  Mutual Funds in your portfolio.
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
       </DialogContent>
     </Dialog>

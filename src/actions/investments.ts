@@ -32,19 +32,61 @@ export async function getExchangeRate(from: string, to: string): Promise<number>
   return fetchExchangeRate(from, to);
 }
 
+// Exchange mappings for country filtering
+const COUNTRY_EXCHANGES: Record<string, string[]> = {
+  US: ["NYQ", "NMS", "NGM", "NCM", "NYS", "NAS", "NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "PCX"],
+  IN: ["NSI", "BSE", "NSE", "BOM"],
+};
+
 /**
  * Search for stocks/investments using Yahoo Finance
+ * @param query - Search query string
+ * @param options - Optional filters for asset type and country
  */
-export async function searchInvestments(query: string) {
+export async function searchInvestments(
+  query: string,
+  options?: {
+    assetType?: "stock" | "etf" | "mutual_fund";
+    country?: "US" | "IN";
+  }
+) {
   try {
     const results = await yahooFinance.search(query, {
-      quotesCount: 10,
+      quotesCount: 20, // Fetch more to allow for filtering
       newsCount: 0,
     });
 
+    let filteredQuotes = results.quotes;
+
+    // Filter by asset type if specified
+    if (options?.assetType) {
+      filteredQuotes = filteredQuotes.filter((quote: any) => {
+        const quoteType = quote.quoteType?.toUpperCase();
+        switch (options.assetType) {
+          case "stock":
+            return quoteType === "EQUITY";
+          case "etf":
+            return quoteType === "ETF";
+          case "mutual_fund":
+            return quoteType === "MUTUALFUND";
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Filter by country/exchange if specified
+    if (options?.country) {
+      const allowedExchanges = COUNTRY_EXCHANGES[options.country] || [];
+      filteredQuotes = filteredQuotes.filter((quote: any) => {
+        const exchange = quote.exchange?.toUpperCase() || "";
+        return allowedExchanges.some(ex => exchange.includes(ex));
+      });
+    }
+
     return {
       success: true,
-      data: results.quotes.map((quote: any) => ({
+      data: filteredQuotes.slice(0, 10).map((quote: any) => ({
         symbol: quote.symbol,
         name: quote.shortname || quote.longname || quote.symbol,
         type: quote.quoteType === "MUTUALFUND" ? "mutual_fund" : 

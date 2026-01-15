@@ -232,6 +232,7 @@ export function PortfolioDashboard({
         portfolios={portfolios}
         currency={currency}
         onViewDetails={handleViewDetails}
+        hidePortfolioTag={hidePortfolioSelector}
       />
 
       {/* Stock Detail Sheet */}

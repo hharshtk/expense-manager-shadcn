@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import Link from "next/link";
 import { refreshInvestmentPrices } from "@/actions/investments";
 import { PortfolioDashboard } from "@/components/investments/portfolio-dashboard";
@@ -8,7 +8,7 @@ import { BuyTransactionDialog } from "@/components/investments/buy-transaction-d
 import { Button } from "@/components/ui/button";
 import { RefreshCw, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { getUserSettings } from "@/server/user-settings-actions";
 import type { Investment, InvestmentTransaction, Portfolio } from "@/lib/schema";
 
 interface PortfolioDetailClientProps {
@@ -25,6 +25,17 @@ export function PortfolioDetailClient({
   portfolioId,
 }: PortfolioDetailClientProps) {
   const [refreshing, setRefreshing] = useState(false);
+  const [userCurrency, setUserCurrency] = useState("USD");
+
+  useEffect(() => {
+    const fetchUserCurrency = async () => {
+      const settings = await getUserSettings();
+      if (settings.success) {
+        setUserCurrency(settings.data.defaultCurrency);
+      }
+    };
+    fetchUserCurrency();
+  }, []);
 
   const summary = useMemo(() => {
     let totalInvested = 0;
@@ -51,9 +62,9 @@ export function PortfolioDetailClient({
       dayGainLoss,
       dayGainLossPercent: previousDayValue > 0 ? (dayGainLoss / previousDayValue) * 100 : 0,
       investmentCount: investments.filter(i => i.isActive).length,
-      currency: "USD",
+      currency: userCurrency,
     };
-  }, [investments]);
+  }, [investments, userCurrency]);
 
   const handleRefreshPrices = async () => {
     setRefreshing(true);

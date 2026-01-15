@@ -41,12 +41,13 @@ interface HoldingsTableProps {
   portfolios: Portfolio[];
   currency: string;
   onViewDetails: (investment: Investment & { transactions: InvestmentTransaction[] }) => void;
+  hidePortfolioTag?: boolean;
 }
 
 type SortField = "symbol" | "value" | "gainLoss" | "dayChange" | "quantity";
 type SortDirection = "asc" | "desc";
 
-export function HoldingsTable({ investments, portfolios, currency, onViewDetails }: HoldingsTableProps) {
+export function HoldingsTable({ investments, portfolios, currency, onViewDetails, hidePortfolioTag = false }: HoldingsTableProps) {
   const [sortField, setSortField] = useState<SortField>("value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
@@ -210,7 +211,6 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
               
               const isProfit = totalGainLoss >= 0;
               const isDayProfit = dayChange >= 0;
-              const invCurrency = investment.currency || "USD";
 
               return (
                 <TableRow 
@@ -221,15 +221,15 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
                   <TableCell>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold">{investment.symbol}</span>
+                        <span className="font-semibold">{investment.name}</span>
                         {!isActive && (
                           <Badge variant="secondary" className="text-xs">Sold</Badge>
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                        {investment.name}
+                        {investment.symbol}
                       </span>
-                      {getPortfolioName(investment.portfolioId) && (
+                      {!hidePortfolioTag && getPortfolioName(investment.portfolioId) && (
                         <Badge variant="outline" className="text-xs w-fit mt-1">
                           {getPortfolioName(investment.portfolioId)}
                         </Badge>
@@ -240,13 +240,13 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
                     {quantity.toFixed(quantity % 1 === 0 ? 0 : 4)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(currentPrice, { currency: invCurrency })}
+                    {formatCurrency(currentPrice, { currency })}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
-                    {formatCurrency(avgPrice, { currency: invCurrency })}
+                    {formatCurrency(avgPrice, { currency })}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(currentValue, { currency: invCurrency })}
+                    {formatCurrency(currentValue, { currency })}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className={`flex flex-col items-end ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
@@ -259,7 +259,7 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
                         <span>{isDayProfit ? "+" : ""}{dayChangePercent.toFixed(2)}%</span>
                       </div>
                       <span className="text-xs">
-                        {isDayProfit ? "+" : ""}{formatCurrency(dayGainLoss, { currency: invCurrency })}
+                        {isDayProfit ? "+" : ""}{formatCurrency(dayGainLoss, { currency })}
                       </span>
                     </div>
                   </TableCell>
@@ -274,7 +274,7 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
                         <span>{isProfit ? "+" : ""}{totalGainLossPercent.toFixed(2)}%</span>
                       </div>
                       <span className="text-xs">
-                        {isProfit ? "+" : ""}{formatCurrency(totalGainLoss, { currency: invCurrency })}
+                        {isProfit ? "+" : ""}{formatCurrency(totalGainLoss, { currency })}
                       </span>
                     </div>
                   </TableCell>
