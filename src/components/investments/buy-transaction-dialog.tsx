@@ -39,6 +39,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Portfolio } from "@/lib/schema";
 
 type AssetTab = "stock" | "etf" | "mutual_fund";
@@ -224,65 +225,73 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div className="space-y-4">
-                    {/* Portfolio Selection - Required */}
-                    <FormField
-                      control={form.control}
-                      name="portfolioId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Portfolio *</FormLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange(parseInt(value, 10))}
-                            value={field.value?.toString() || ""}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a portfolio" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {portfolios.map((portfolio) => (
-                                <SelectItem key={portfolio.id} value={portfolio.id.toString()}>
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className="w-2 h-2 rounded-full"
-                                      style={{ backgroundColor: portfolio.color || "#6366f1" }}
-                                    />
-                                    {portfolio.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {/* Portfolio Selection and Country Filter - Same Row */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="portfolioId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Portfolio *</FormLabel>
+                            <Select
+                              onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                              value={field.value?.toString() || ""}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a portfolio" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {portfolios.map((portfolio) => (
+                                  <SelectItem key={portfolio.id} value={portfolio.id.toString()}>
+                                    <div className="flex items-center gap-2">
+                                      <div
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: portfolio.color || "#6366f1" }}
+                                      />
+                                      {portfolio.name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    {/* Country Filter for Stocks */}
-                    <div className="space-y-2">
-                      <FormLabel>Country</FormLabel>
-                      <Select
-                        value={selectedCountry}
-                        onValueChange={(v) => setSelectedCountry(v as CountryFilter)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COUNTRY_OPTIONS.map((country) => (
-                            <SelectItem key={country.value} value={country.value}>
-                              <span className="flex items-center gap-2">
-                                <span>{country.flag}</span>
-                                <span>{country.label}</span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Search will be restricted to {selectedCountry === "US" ? "US" : "Indian"} stock exchanges
-                      </p>
+                      {/* Country Filter for Stocks */}
+                      <FormItem>
+                        <FormLabel>Country</FormLabel>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Select
+                                value={selectedCountry}
+                                onValueChange={(v) => setSelectedCountry(v as CountryFilter)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select country" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {COUNTRY_OPTIONS.map((country) => (
+                                    <SelectItem key={country.value} value={country.value}>
+                                      <span className="flex items-center gap-2">
+                                        <span>{country.flag}</span>
+                                        <span>{country.label}</span>
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Search will be restricted to {selectedCountry === "US" ? "US" : "Indian"} stock exchanges</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </FormItem>
                     </div>
 
                     <FormField
