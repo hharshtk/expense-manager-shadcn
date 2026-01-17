@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Table,
   TableBody,
@@ -36,6 +36,8 @@ import {
   ChevronDown,
   FolderOpen,
   ArrowRightLeft,
+  ChevronRight,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { Investment, InvestmentTransaction, Portfolio } from "@/lib/schema";
@@ -241,6 +243,7 @@ export function HoldingsTable({ investments, portfolios, displayCurrency, onView
   const [sellDialogOpen, setSellDialogOpen] = useState(false);
   const [buyDialogOpen, setBuyDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -298,6 +301,16 @@ export function HoldingsTable({ investments, portfolios, displayCurrency, onView
     return portfolio?.name || null;
   };
 
+  const toggleRowExpansion = (investmentId: number) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(investmentId)) {
+      newExpanded.delete(investmentId);
+    } else {
+      newExpanded.add(investmentId);
+    }
+    setExpandedRows(newExpanded);
+  };
+
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) {
       return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
@@ -325,6 +338,7 @@ export function HoldingsTable({ investments, portfolios, displayCurrency, onView
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]" />
               <TableHead className="w-[200px]">
                 <Button
                   variant="ghost"
@@ -389,34 +403,54 @@ export function HoldingsTable({ investments, portfolios, displayCurrency, onView
             {sortedInvestments.map((investment) => {
               const isActive = investment.isActive && Number(investment.totalQuantity) > 0;
               const vals = getInvestmentValues(investment, displayCurrency);
+              const isExpanded = expandedRows.has(investment.id);
+              const hasTransactions = "transactions" in investment && investment.transactions && investment.transactions.length > 0;
               
               const isProfit = vals.totalGainLoss >= 0;
               const isDayProfit = vals.dayGainLoss >= 0;
 
               return (
-                <TableRow 
-                  key={investment.id} 
-                  className={`cursor-pointer hover:bg-muted/50 ${!isActive ? "opacity-50" : ""}`}
-                  onClick={() => onViewDetails(investment)}
-                >
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{investment.name}</span>
-                        {!isActive && (
-                          <Badge variant="secondary" className="text-xs">Sold</Badge>
+                <React.Fragment key={investment.id}>
+                  <TableRow 
+                    className={`cursor-pointer hover:bg-muted/50 ${!isActive ? "opacity-50" : ""}`}
+                  >
+                    <TableCell>
+                      {hasTransactions && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRowExpansion(investment.id);
+                          }}
+                        >
+                          {isExpanded ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{investment.name}</span>
+                          {!isActive && (
+                            <Badge variant="secondary" className="text-xs">Sold</Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                          {investment.symbol}
+                        </span>
+                        {!hidePortfolioTag && getPortfolioName(investment.portfolioId) && (
+                          <Badge variant="outline" className="text-xs w-fit mt-1">
+                            {getPortfolioName(investment.portfolioId)}
+                          </Badge>
                         )}
                       </div>
-                      <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                        {investment.symbol}
-                      </span>
-                      {!hidePortfolioTag && getPortfolioName(investment.portfolioId) && (
-                        <Badge variant="outline" className="text-xs w-fit mt-1">
-                          {getPortfolioName(investment.portfolioId)}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
+                    </TableCell>
                   <TableCell className="text-right font-medium">
                     {vals.quantity.toFixed(vals.quantity % 1 === 0 ? 0 : 4)}
                   </TableCell>
@@ -521,6 +555,92 @@ export function HoldingsTable({ investments, portfolios, displayCurrency, onView
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
+                
+                {/* Transaction sub-rows */}
+                {isExpanded && hasTransactions && "transactions" in investment && investment.transactions && (
+                  <TableRow key={`${investment.id}-transactions`}>
+                    <TableCell colSpan={9} className="bg-muted/30 p-0">
+                      <div className="px-4 py-2">
+                        <div className="text-sm font-medium mb-3 text-muted-foreground">Transaction History</div>
+                        <div className="space-y-2">
+                          {/* Header row for transactions */}
+                          <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground border-b pb-2">
+                            <div className="col-span-2">Date</div>
+                            <div className="col-span-1 text-center">Type</div>
+                            <div className="col-span-2 text-right">Price</div>
+                            <div className="col-span-1 text-right">Quantity</div>
+                            <div className="col-span-2 text-right">Total</div>
+                            <div className="col-span-2 text-right">Gain/Loss</div>
+                            <div className="col-span-2 text-right">Value</div>
+                          </div>
+                          
+                          {/* Transaction rows */}
+                          {investment.transactions
+                            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                            .map((transaction, index) => {
+                              const transactionDate = new Date(transaction.date);
+                              const currentPrice = vals.currentPrice;
+                              const transactionValue = Number(transaction.quantity) * currentPrice;
+                              const transactionGainLoss = transaction.type === 'buy' 
+                                ? (currentPrice - Number(transaction.price)) * Number(transaction.quantity)
+                                : transaction.type === 'sell'
+                                ? (Number(transaction.price) - currentPrice) * Number(transaction.quantity)
+                                : 0;
+                              
+                              // Convert gain/loss to display currency if needed
+                              const convertedGainLoss = vals.conversionApplied && vals.exchangeRate
+                                ? transactionGainLoss * vals.exchangeRate
+                                : transactionGainLoss;
+                              
+                              const convertedTransactionValue = vals.conversionApplied && vals.exchangeRate
+                                ? transactionValue * vals.exchangeRate
+                                : transactionValue;
+                              
+                              return (
+                                <div key={transaction.id || index} className="grid grid-cols-12 gap-4 text-sm py-1 border-b border-muted/50 last:border-b-0">
+                                  <div className="col-span-2 text-muted-foreground">
+                                    {transactionDate.toLocaleDateString()}
+                                  </div>
+                                  <div className="col-span-1 text-center">
+                                    <Badge 
+                                      variant={transaction.type === 'buy' ? 'default' : transaction.type === 'sell' ? 'destructive' : 'secondary'}
+                                      className="text-xs"
+                                    >
+                                      {transaction.type.toUpperCase()}
+                                    </Badge>
+                                  </div>
+                                  <div className="col-span-2 text-right">
+                                    {formatCurrency(Number(transaction.price), { currency: transaction.currency || vals.nativeCurrency })}
+                                  </div>
+                                  <div className="col-span-1 text-right">
+                                    {Number(transaction.quantity).toFixed(4)}
+                                  </div>
+                                  <div className="col-span-2 text-right">
+                                    {formatCurrency(Number(transaction.totalAmount), { currency: transaction.currency || vals.nativeCurrency })}
+                                  </div>
+                                  <div className="col-span-2 text-right">
+                                    <span className={convertedGainLoss >= 0 ? "text-green-600" : "text-red-600"}>
+                                      {convertedGainLoss >= 0 ? "+" : ""}{formatCurrency(convertedGainLoss, { currency: displayCurrency })}
+                                    </span>
+                                    <div className="text-xs text-muted-foreground">
+                                      {convertedGainLoss !== 0 && convertedTransactionValue !== 0 ? 
+                                        `${((convertedGainLoss / convertedTransactionValue) * 100).toFixed(2)}%` : 
+                                        "0.00%"
+                                      }
+                                    </div>
+                                  </div>
+                                  <div className="col-span-2 text-right font-medium">
+                                    {formatCurrency(convertedTransactionValue, { currency: displayCurrency })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                </React.Fragment>
               );
             })}
           </TableBody>
