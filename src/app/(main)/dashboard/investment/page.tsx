@@ -1,11 +1,12 @@
-import { getInvestments, getPortfolios } from "@/actions/investments";
+import { getInvestmentsWithConversion, getPortfolios, getUserDisplayCurrency } from "@/actions/investments";
 import { PortfolioList } from "@/components/investments/portfolio-list";
 import { InvestmentPageClient } from "./_components/investment-page-client";
 
 export default async function InvestmentPage() {
-  const [investmentsResult, portfoliosResult] = await Promise.all([
-    getInvestments(),
+  const [investmentsResult, portfoliosResult, displayCurrency] = await Promise.all([
+    getInvestmentsWithConversion(),
     getPortfolios(),
+    getUserDisplayCurrency(),
   ]);
 
   const investments = investmentsResult.success ? (investmentsResult.data || []) : [];
@@ -17,7 +18,7 @@ export default async function InvestmentPage() {
       <PortfolioList
         portfolios={portfolios}
         investments={investments}
-        currency="USD"
+        displayCurrency={displayCurrency}
       />
     </div>
   );

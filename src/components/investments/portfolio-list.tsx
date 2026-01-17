@@ -10,9 +10,17 @@ import {
   Briefcase,
   TrendingUp,
   BarChart3,
+  ArrowRightLeft,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import type { Investment, Portfolio } from "@/lib/schema";
+import type { Portfolio } from "@/lib/schema";
+import type { InvestmentWithConversion } from "@/actions/investments";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface PortfolioWithStats extends Portfolio {
   totalInvested: number;
@@ -22,20 +30,21 @@ interface PortfolioWithStats extends Portfolio {
   dayGainLoss: number;
   dayGainLossPercent: number;
   holdingsCount: number;
+  hasConversions: boolean;
 }
 
 interface PortfolioListProps {
   portfolios: Portfolio[];
-  investments: Investment[];
-  currency: string;
+  investments: InvestmentWithConversion[];
+  displayCurrency: string;
 }
 
-export function PortfolioList({ portfolios, investments, currency }: PortfolioListProps) {
-  // Calculate stats for each portfolio
+export function PortfolioList({ portfolios, investments, displayCurrency }: PortfolioListProps) {
+  // Calculate stats for each portfolio using converted values
   const portfoliosWithStats = useMemo(() => {
     return portfolios.map((portfolio) => {
       const portfolioInvestments = investments.filter(
-        (inv) => inv.portfolioId === portfolio.id && inv.isActive
+        (inv) => inv.portfolioId === portfolio.id && inv.quantity > 0
       );
 
       let totalInvested = 0;
@@ -43,14 +52,20 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
       let totalGainLoss = 0;
       let dayGainLoss = 0;
       let previousDayValue = 0;
+      let hasConversions = false;
 
       for (const inv of portfolioInvestments) {
-        totalInvested += Number(inv.totalInvested || 0);
-        currentValue += Number(inv.currentValue || 0);
-        totalGainLoss += Number(inv.totalGainLoss || 0);
-        const invDayGainLoss = Number(inv.dayGainLoss || 0);
+        // Use already-converted values from the server
+        totalInvested += inv.totalInvested.amount;
+        currentValue += inv.currentValue.amount;
+        totalGainLoss += inv.totalGainLoss.amount;
+        const invDayGainLoss = inv.dayGainLoss.amount;
         dayGainLoss += invDayGainLoss;
-        previousDayValue += Number(inv.currentValue || 0) - invDayGainLoss;
+        previousDayValue += inv.currentValue.amount - invDayGainLoss;
+        
+        if (inv.conversionApplied) {
+          hasConversions = true;
+        }
       }
 
       return {
@@ -62,25 +77,36 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
         dayGainLoss,
         dayGainLossPercent: previousDayValue > 0 ? (dayGainLoss / previousDayValue) * 100 : 0,
         holdingsCount: portfolioInvestments.length,
+        hasConversions,
       } as PortfolioWithStats;
     });
   }, [portfolios, investments]);
 
-  // Calculate total portfolio stats
+  // Calculate total portfolio stats using converted values
   const totalStats = useMemo(() => {
     let totalInvested = 0;
     let currentValue = 0;
     let totalGainLoss = 0;
     let dayGainLoss = 0;
     let previousDayValue = 0;
+    let hasConversions = false;
+    const conversionsApplied: string[] = [];
 
-    for (const inv of investments.filter(i => i.isActive)) {
-      totalInvested += Number(inv.totalInvested || 0);
-      currentValue += Number(inv.currentValue || 0);
-      totalGainLoss += Number(inv.totalGainLoss || 0);
-      const invDayGainLoss = Number(inv.dayGainLoss || 0);
+    for (const inv of investments.filter(i => i.quantity > 0)) {
+      // Use already-converted values from the server
+      totalInvested += inv.totalInvested.amount;
+      currentValue += inv.currentValue.amount;
+      totalGainLoss += inv.totalGainLoss.amount;
+      const invDayGainLoss = inv.dayGainLoss.amount;
       dayGainLoss += invDayGainLoss;
-      previousDayValue += Number(inv.currentValue || 0) - invDayGainLoss;
+      previousDayValue += inv.currentValue.amount - invDayGainLoss;
+      
+      if (inv.conversionApplied && inv.nativeCurrency) {
+        hasConversions = true;
+        if (!conversionsApplied.includes(inv.nativeCurrency)) {
+          conversionsApplied.push(inv.nativeCurrency);
+        }
+      }
     }
 
     return {
@@ -90,12 +116,37 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
       totalGainLossPercent: totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0,
       dayGainLoss,
       dayGainLossPercent: previousDayValue > 0 ? (dayGainLoss / previousDayValue) * 100 : 0,
-      holdingsCount: investments.filter(i => i.isActive).length,
+      holdingsCount: investments.filter(i => i.quantity > 0).length,
+      hasConversions,
+      conversionsApplied,
     };
   }, [investments]);
 
   const isProfit = totalStats.totalGainLoss >= 0;
   const isDayProfit = totalStats.dayGainLoss >= 0;
+
+  // Helper to show conversion indicator
+  const ConversionIndicator = ({ currencies }: { currencies: string[] }) => {
+    if (currencies.length === 0) return null;
+    
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground ml-1">
+              <ArrowRightLeft className="h-3 w-3" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">
+              Includes conversions from {currencies.join(", ")} to {displayCurrency}
+            </p>
+            <p className="text-xs text-muted-foreground">Using ECB reference rates</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
 
   if (portfolios.length === 0) {
     return (
@@ -121,12 +172,13 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(totalStats.currentValue, { currency })}
+            <div className="text-2xl font-bold flex items-center">
+              {formatCurrency(totalStats.currentValue, { currency: displayCurrency })}
+              {totalStats.hasConversions && <ConversionIndicator currencies={totalStats.conversionsApplied} />}
             </div>
             <div className={`flex items-center text-xs mt-1 ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
               {isDayProfit ? <ArrowUpRight className="h-3 w-3 mr-1" /> : <ArrowDownRight className="h-3 w-3 mr-1" />}
-              {formatCurrency(Math.abs(totalStats.dayGainLoss), { currency })} ({totalStats.dayGainLossPercent.toFixed(2)}%) today
+              {formatCurrency(Math.abs(totalStats.dayGainLoss), { currency: displayCurrency })} ({totalStats.dayGainLossPercent.toFixed(2)}%) today
             </div>
           </CardContent>
         </Card>
@@ -137,8 +189,9 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(totalStats.totalInvested, { currency })}
+            <div className="text-2xl font-bold flex items-center">
+              {formatCurrency(totalStats.totalInvested, { currency: displayCurrency })}
+              {totalStats.hasConversions && <ConversionIndicator currencies={totalStats.conversionsApplied} />}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {portfolios.length} portfolio{portfolios.length !== 1 ? "s" : ""} • {totalStats.holdingsCount} holding{totalStats.holdingsCount !== 1 ? "s" : ""}
@@ -156,8 +209,9 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
             )}
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${isProfit ? "text-green-500" : "text-red-500"}`}>
-              {isProfit ? "+" : ""}{formatCurrency(totalStats.totalGainLoss, { currency })}
+            <div className={`text-2xl font-bold flex items-center ${isProfit ? "text-green-500" : "text-red-500"}`}>
+              {isProfit ? "+" : ""}{formatCurrency(totalStats.totalGainLoss, { currency: displayCurrency })}
+              {totalStats.hasConversions && <ConversionIndicator currencies={totalStats.conversionsApplied} />}
             </div>
             <p className={`text-xs mt-1 ${isProfit ? "text-green-500" : "text-red-500"}`}>
               {isProfit ? "+" : ""}{totalStats.totalGainLossPercent.toFixed(2)}% all time
@@ -175,8 +229,9 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
             )}
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
-              {isDayProfit ? "+" : ""}{formatCurrency(totalStats.dayGainLoss, { currency })}
+            <div className={`text-2xl font-bold flex items-center ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
+              {isDayProfit ? "+" : ""}{formatCurrency(totalStats.dayGainLoss, { currency: displayCurrency })}
+              {totalStats.hasConversions && <ConversionIndicator currencies={totalStats.conversionsApplied} />}
             </div>
             <p className={`text-xs mt-1 ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
               {isDayProfit ? "+" : ""}{totalStats.dayGainLossPercent.toFixed(2)}%
@@ -223,8 +278,11 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
                     <div className="space-y-3">
                       <div className="flex justify-between items-baseline">
                         <span className="text-sm text-muted-foreground">Value</span>
-                        <span className="text-xl font-bold">
-                          {formatCurrency(portfolio.currentValue, { currency })}
+                        <span className="text-xl font-bold flex items-center">
+                          {formatCurrency(portfolio.currentValue, { currency: displayCurrency })}
+                          {portfolio.hasConversions && (
+                            <ArrowRightLeft className="h-3 w-3 ml-1 text-muted-foreground" />
+                          )}
                         </span>
                       </div>
 
@@ -238,7 +296,7 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
                           )}
                           <span className="font-medium">
                             {portfolioIsProfit ? "+" : ""}
-                            {formatCurrency(portfolio.totalGainLoss, { currency })}
+                            {formatCurrency(portfolio.totalGainLoss, { currency: displayCurrency })}
                           </span>
                           <span className="text-xs ml-1">
                             ({portfolioIsProfit ? "+" : ""}{portfolio.totalGainLossPercent.toFixed(2)}%)
@@ -256,7 +314,7 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
                           )}
                           <span>
                             {portfolioIsDayProfit ? "+" : ""}
-                            {formatCurrency(portfolio.dayGainLoss, { currency })} ({portfolio.dayGainLossPercent.toFixed(2)}%)
+                            {formatCurrency(portfolio.dayGainLoss, { currency: displayCurrency })} ({portfolio.dayGainLossPercent.toFixed(2)}%)
                           </span>
                         </div>
                       </div>

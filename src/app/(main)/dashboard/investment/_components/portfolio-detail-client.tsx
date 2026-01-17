@@ -10,10 +10,22 @@ import { RefreshCw, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { getUserSettings } from "@/server/user-settings-actions";
 import type { Investment, InvestmentTransaction, Portfolio } from "@/lib/schema";
+import type { DisplayValue } from "@/actions/investments";
+
+type PortfolioInvestment = (Investment & { transactions: InvestmentTransaction[] }) & {
+  displayCurrency?: string;
+  conversionApplied?: boolean;
+  convertedValues?: {
+    currentValue: DisplayValue;
+    totalInvested: DisplayValue;
+    totalGainLoss: DisplayValue;
+    dayGainLoss: DisplayValue;
+  };
+};
 
 interface PortfolioDetailClientProps {
   portfolio: Portfolio;
-  investments: (Investment & { transactions: InvestmentTransaction[] })[];
+  investments: PortfolioInvestment[];
   portfolios: Portfolio[];
   portfolioId: number;
 }
@@ -46,6 +58,17 @@ export function PortfolioDetailClient({
 
     for (const inv of investments) {
       if (!inv.isActive) continue;
+
+      if (inv.convertedValues?.currentValue) {
+        totalInvested += inv.convertedValues.totalInvested.amount;
+        currentValue += inv.convertedValues.currentValue.amount;
+        totalGainLoss += inv.convertedValues.totalGainLoss.amount;
+        const invDayGainLoss = inv.convertedValues.dayGainLoss.amount;
+        dayGainLoss += invDayGainLoss;
+        previousDayValue += inv.convertedValues.currentValue.amount - invDayGainLoss;
+        continue;
+      }
+
       totalInvested += Number(inv.totalInvested || 0);
       currentValue += Number(inv.currentValue || 0);
       totalGainLoss += Number(inv.totalGainLoss || 0);

@@ -18,6 +18,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
@@ -29,28 +35,209 @@ import {
   ChevronUp,
   ChevronDown,
   FolderOpen,
+  ArrowRightLeft,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { Investment, InvestmentTransaction, Portfolio } from "@/lib/schema";
+import type { InvestmentWithConversion, DisplayValue } from "@/actions/investments";
 import { SellTransactionDialog } from "./sell-transaction-dialog";
 import { AddPurchaseDialog } from "./add-purchase-dialog";
 import { AssignPortfolioDialog } from "./portfolio-selector";
 
+// Support both legacy Investment and new InvestmentWithConversion
+type InvestmentItem = 
+  | (Investment & { transactions: InvestmentTransaction[] } & {
+      displayCurrency?: string;
+      conversionApplied?: boolean;
+      convertedValues?: {
+        currentValue: DisplayValue;
+        totalInvested: DisplayValue;
+        totalGainLoss: DisplayValue;
+        dayGainLoss: DisplayValue;
+      };
+    })
+  | InvestmentWithConversion;
+
 interface HoldingsTableProps {
-  investments: (Investment & { transactions: InvestmentTransaction[] })[];
+  investments: InvestmentItem[];
   portfolios: Portfolio[];
-  currency: string;
-  onViewDetails: (investment: Investment & { transactions: InvestmentTransaction[] }) => void;
+  displayCurrency: string;
+  onViewDetails: (investment: InvestmentItem) => void;
   hidePortfolioTag?: boolean;
 }
 
 type SortField = "symbol" | "value" | "gainLoss" | "dayChange" | "quantity";
 type SortDirection = "asc" | "desc";
 
-export function HoldingsTable({ investments, portfolios, currency, onViewDetails, hidePortfolioTag = false }: HoldingsTableProps) {
+// Type guard to check if investment has conversion data
+function hasConversionData(inv: InvestmentItem): inv is InvestmentWithConversion {
+  return "currentValue" in inv && typeof inv.currentValue === "object" && inv.currentValue !== null && "amount" in inv.currentValue;
+}
+
+// Helper to get values from either format
+function getInvestmentValues(inv: InvestmentItem, displayCurrency: string) {
+  if (hasConversionData(inv)) {
+    // New format with conversion data
+    return {
+      quantity: inv.quantity,
+      currentPrice: inv.currentPrice,
+      avgPrice: inv.averagePrice,
+      nativeCurrency: inv.nativeCurrency,
+      // Display values (already converted)
+      currentValue: inv.currentValue.amount,
+      totalGainLoss: inv.totalGainLoss.amount,
+      dayGainLoss: inv.dayGainLoss.amount,
+      totalGainLossPercent: inv.totalGainLossPercent,
+      dayChangePercent: inv.dayChangePercent,
+      displayCurrency: inv.displayCurrency,
+      conversionApplied: inv.conversionApplied,
+      exchangeRate: inv.exchangeRate,
+      // For display value objects
+      currentValueDisplay: inv.currentValue,
+      totalGainLossDisplay: inv.totalGainLoss,
+      dayGainLossDisplay: inv.dayGainLoss,
+    };
+  } else if ("convertedValues" in inv && inv.convertedValues?.currentValue) {
+    const nativeCurrency = inv.currency || "USD";
+    return {
+      quantity: Number(inv.totalQuantity || 0),
+      currentPrice: Number(inv.currentPrice || 0),
+      avgPrice: Number(inv.averagePrice || 0),
+      nativeCurrency,
+      currentValue: inv.convertedValues.currentValue.amount,
+      totalGainLoss: inv.convertedValues.totalGainLoss.amount,
+      dayGainLoss: inv.convertedValues.dayGainLoss.amount,
+      totalGainLossPercent: Number(inv.totalGainLossPercent || 0),
+      dayChangePercent: Number(inv.dayChangePercent || 0),
+      displayCurrency: inv.displayCurrency || displayCurrency,
+      conversionApplied: Boolean(inv.conversionApplied),
+      exchangeRate: inv.convertedValues.currentValue.exchangeRate,
+      currentValueDisplay: inv.convertedValues.currentValue,
+      totalGainLossDisplay: inv.convertedValues.totalGainLoss,
+      dayGainLossDisplay: inv.convertedValues.dayGainLoss,
+    };
+  } else {
+    // Legacy format - use values as-is (no conversion)
+    const nativeCurrency = inv.currency || "USD";
+    return {
+      quantity: Number(inv.totalQuantity || 0),
+      currentPrice: Number(inv.currentPrice || 0),
+      avgPrice: Number(inv.averagePrice || 0),
+      nativeCurrency,
+      currentValue: Number(inv.currentValue || 0),
+      totalGainLoss: Number(inv.totalGainLoss || 0),
+      dayGainLoss: Number(inv.dayGainLoss || 0),
+      totalGainLossPercent: Number(inv.totalGainLossPercent || 0),
+      dayChangePercent: Number(inv.dayChangePercent || 0),
+      displayCurrency: nativeCurrency,
+      conversionApplied: false,
+      exchangeRate: undefined,
+      currentValueDisplay: null,
+      totalGainLossDisplay: null,
+      dayGainLossDisplay: null,
+    };
+  }
+}
+
+// Component to display value with optional conversion indicator
+function ConvertedValueDisplay({ 
+  amount, 
+  currency, 
+  displayValue,
+  showSign = false,
+  className = "",
+}: { 
+  amount: number; 
+  currency: string; 
+  displayValue?: DisplayValue | null;
+  showSign?: boolean;
+  className?: string;
+}) {
+  const formatted = formatCurrency(Math.abs(amount), { currency });
+  const sign = showSign ? (amount >= 0 ? "+" : "-") : (amount < 0 ? "-" : "");
+  const display = `${sign}${formatted}`;
+  
+  if (displayValue?.wasConverted && displayValue.originalAmount !== undefined) {
+    const originalFormatted = formatCurrency(Math.abs(displayValue.originalAmount), { 
+      currency: displayValue.originalCurrency || currency 
+    });
+    
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={`inline-flex items-center gap-0.5 cursor-help ${className}`}>
+              {display}
+              <ArrowRightLeft className="h-3 w-3 text-muted-foreground ml-0.5" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="text-xs space-y-1">
+              <p className="font-medium">
+                {showSign && displayValue.originalAmount >= 0 ? "+" : ""}{originalFormatted} → {display}
+              </p>
+              <p className="text-muted-foreground">
+                Rate: {displayValue.exchangeRate?.toFixed(4)} {displayValue.originalCurrency}→{currency}
+              </p>
+              <p className="text-muted-foreground">ECB reference rate</p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  
+  return <span className={className}>{display}</span>;
+}
+
+// Minimal investment data needed for dialogs
+interface InvestmentForDialog {
+  id: number;
+  symbol: string;
+  name: string;
+  type: string;
+  exchange?: string | null;
+  currentPrice: number | string | null;
+  totalQuantity: number | string | null;
+  averagePrice: number | string | null;
+  portfolioId: number | null;
+  currency?: string;
+}
+
+// Extract minimal investment data for dialogs
+function toInvestmentForDialog(inv: InvestmentItem): InvestmentForDialog {
+  if (hasConversionData(inv)) {
+    return {
+      id: inv.id,
+      symbol: inv.symbol,
+      name: inv.name,
+      type: inv.type,
+      exchange: inv.exchange,
+      currentPrice: inv.currentPrice,
+      totalQuantity: inv.totalQuantity,
+      averagePrice: inv.averagePrice,
+      portfolioId: inv.portfolioId,
+      currency: inv.nativeCurrency,
+    };
+  }
+  return {
+    id: inv.id,
+    symbol: inv.symbol,
+    name: inv.name,
+    type: inv.type,
+    exchange: inv.exchange,
+    currentPrice: inv.currentPrice,
+    totalQuantity: inv.totalQuantity,
+    averagePrice: inv.averagePrice,
+    portfolioId: inv.portfolioId,
+    currency: inv.currency,
+  };
+}
+
+export function HoldingsTable({ investments, portfolios, displayCurrency, onViewDetails, hidePortfolioTag = false }: HoldingsTableProps) {
   const [sortField, setSortField] = useState<SortField>("value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
+  const [selectedInvestment, setSelectedInvestment] = useState<InvestmentForDialog | null>(null);
   const [sellDialogOpen, setSellDialogOpen] = useState(false);
   const [buyDialogOpen, setBuyDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -65,6 +252,8 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
   };
 
   const sortedInvestments = [...investments].sort((a, b) => {
+    const aVals = getInvestmentValues(a, displayCurrency);
+    const bVals = getInvestmentValues(b, displayCurrency);
     let comparison = 0;
     
     switch (sortField) {
@@ -72,34 +261,34 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
         comparison = a.symbol.localeCompare(b.symbol);
         break;
       case "value":
-        comparison = Number(a.currentValue || 0) - Number(b.currentValue || 0);
+        comparison = aVals.currentValue - bVals.currentValue;
         break;
       case "gainLoss":
-        comparison = Number(a.totalGainLossPercent || 0) - Number(b.totalGainLossPercent || 0);
+        comparison = aVals.totalGainLossPercent - bVals.totalGainLossPercent;
         break;
       case "dayChange":
-        comparison = Number(a.dayChangePercent || 0) - Number(b.dayChangePercent || 0);
+        comparison = aVals.dayChangePercent - bVals.dayChangePercent;
         break;
       case "quantity":
-        comparison = Number(a.totalQuantity || 0) - Number(b.totalQuantity || 0);
+        comparison = aVals.quantity - bVals.quantity;
         break;
     }
     
     return sortDirection === "asc" ? comparison : -comparison;
   });
 
-  const handleSell = (investment: Investment) => {
-    setSelectedInvestment(investment);
+  const handleSell = (investment: InvestmentItem) => {
+    setSelectedInvestment(toInvestmentForDialog(investment));
     setSellDialogOpen(true);
   };
 
-  const handleBuyMore = (investment: Investment) => {
-    setSelectedInvestment(investment);
+  const handleBuyMore = (investment: InvestmentItem) => {
+    setSelectedInvestment(toInvestmentForDialog(investment));
     setBuyDialogOpen(true);
   };
 
-  const handleAssignPortfolio = (investment: Investment) => {
-    setSelectedInvestment(investment);
+  const handleAssignPortfolio = (investment: InvestmentItem) => {
+    setSelectedInvestment(toInvestmentForDialog(investment));
     setAssignDialogOpen(true);
   };
 
@@ -199,18 +388,10 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
           <TableBody>
             {sortedInvestments.map((investment) => {
               const isActive = investment.isActive && Number(investment.totalQuantity) > 0;
-              const currentPrice = Number(investment.currentPrice || 0);
-              const avgPrice = Number(investment.averagePrice || 0);
-              const quantity = Number(investment.totalQuantity || 0);
-              const currentValue = Number(investment.currentValue || 0);
-              const totalGainLoss = Number(investment.totalGainLoss || 0);
-              const totalGainLossPercent = Number(investment.totalGainLossPercent || 0);
-              const dayChange = Number(investment.dayChange || 0);
-              const dayChangePercent = Number(investment.dayChangePercent || 0);
-              const dayGainLoss = Number(investment.dayGainLoss || 0);
+              const vals = getInvestmentValues(investment, displayCurrency);
               
-              const isProfit = totalGainLoss >= 0;
-              const isDayProfit = dayChange >= 0;
+              const isProfit = vals.totalGainLoss >= 0;
+              const isDayProfit = vals.dayGainLoss >= 0;
 
               return (
                 <TableRow 
@@ -237,17 +418,25 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {quantity.toFixed(quantity % 1 === 0 ? 0 : 4)}
+                    {vals.quantity.toFixed(vals.quantity % 1 === 0 ? 0 : 4)}
                   </TableCell>
+                  {/* Price in NATIVE currency (e.g., $49.96 for US stocks) */}
                   <TableCell className="text-right">
-                    {formatCurrency(currentPrice, { currency })}
+                    {formatCurrency(vals.currentPrice, { currency: vals.nativeCurrency })}
                   </TableCell>
+                  {/* Avg Cost in NATIVE currency */}
                   <TableCell className="text-right text-muted-foreground">
-                    {formatCurrency(avgPrice, { currency })}
+                    {formatCurrency(vals.avgPrice, { currency: vals.nativeCurrency })}
                   </TableCell>
+                  {/* Market Value in DISPLAY currency (with conversion indicator) */}
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(currentValue, { currency })}
+                    <ConvertedValueDisplay
+                      amount={vals.currentValue}
+                      currency={displayCurrency}
+                      displayValue={vals.currentValueDisplay}
+                    />
                   </TableCell>
+                  {/* Day Change in DISPLAY currency (with conversion indicator) */}
                   <TableCell className="text-right">
                     <div className={`flex flex-col items-end ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
                       <div className="flex items-center">
@@ -256,13 +445,19 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
                         ) : (
                           <ArrowDownRight className="h-3 w-3 mr-1" />
                         )}
-                        <span>{isDayProfit ? "+" : ""}{dayChangePercent.toFixed(2)}%</span>
+                        <span>{isDayProfit ? "+" : ""}{vals.dayChangePercent.toFixed(2)}%</span>
                       </div>
                       <span className="text-xs">
-                        {isDayProfit ? "+" : ""}{formatCurrency(dayGainLoss, { currency })}
+                        <ConvertedValueDisplay
+                          amount={vals.dayGainLoss}
+                          currency={displayCurrency}
+                          displayValue={vals.dayGainLossDisplay}
+                          showSign
+                        />
                       </span>
                     </div>
                   </TableCell>
+                  {/* Total Return in DISPLAY currency (with conversion indicator) */}
                   <TableCell className="text-right">
                     <div className={`flex flex-col items-end ${isProfit ? "text-green-500" : "text-red-500"}`}>
                       <div className="flex items-center">
@@ -271,10 +466,15 @@ export function HoldingsTable({ investments, portfolios, currency, onViewDetails
                         ) : (
                           <ArrowDownRight className="h-3 w-3 mr-1" />
                         )}
-                        <span>{isProfit ? "+" : ""}{totalGainLossPercent.toFixed(2)}%</span>
+                        <span>{isProfit ? "+" : ""}{vals.totalGainLossPercent.toFixed(2)}%</span>
                       </div>
                       <span className="text-xs">
-                        {isProfit ? "+" : ""}{formatCurrency(totalGainLoss, { currency })}
+                        <ConvertedValueDisplay
+                          amount={vals.totalGainLoss}
+                          currency={displayCurrency}
+                          displayValue={vals.totalGainLossDisplay}
+                          showSign
+                        />
                       </span>
                     </div>
                   </TableCell>

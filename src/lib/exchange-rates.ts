@@ -1,21 +1,46 @@
-import CurrencyConverter from 'currency-converter-lt';
+/**
+ * Exchange Rate Utilities
+ * 
+ * Uses Frankfurter API (ECB reference rates) as the authoritative FX source.
+ * This module provides backward-compatible exports from the new FX module.
+ * 
+ * For new code, prefer importing directly from "@/lib/fx"
+ */
+
+import { 
+  getExchangeRate as fxGetExchangeRate,
+  getExchangeRateWithDetails,
+  getLatestRate,
+  getHistoricalRate,
+  type FxRate,
+} from "@/lib/fx";
 
 /**
- * Get exchange rate between two currencies using currency-converter-lt
+ * Get exchange rate between two currencies using Frankfurter API
+ * 
+ * @param from - Source currency (ISO-4217 code)
+ * @param to - Target currency (ISO-4217 code)
+ * @returns Exchange rate as a number, or 1 if conversion fails
  */
 export async function getExchangeRate(from: string, to: string): Promise<number> {
-  if (from === to) return 1;
-  
-  try {
-    const currencyConverter = new CurrencyConverter({ from, to, amount: 1 });
-    console.log(`Fetching exchange rate from ${from} to ${to}`);
-    const rate = await currencyConverter.convert();
-    return rate || 1;
-  } catch (error) {
-    console.error(`Failed to fetch exchange rate for ${from} to ${to}:`, error);
-    // Fallback rates for common pairs if the service fails
-    if (from === "USD" && to === "INR") return 83.0;
-    if (from === "INR" && to === "USD") return 0.012;
-    return 1;
-  }
+  return fxGetExchangeRate(from, to);
 }
+
+/**
+ * Get exchange rate with full metadata
+ * 
+ * @param from - Source currency (ISO-4217 code)
+ * @param to - Target currency (ISO-4217 code)
+ * @param date - Optional historical date (YYYY-MM-DD)
+ * @returns FxRate object with rate, date, and source info, or null if failed
+ */
+export async function getExchangeRateDetails(
+  from: string, 
+  to: string,
+  date?: string
+): Promise<FxRate | null> {
+  return getExchangeRateWithDetails(from, to, date);
+}
+
+// Re-export for convenience
+export { getLatestRate, getHistoricalRate, type FxRate };

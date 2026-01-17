@@ -296,8 +296,21 @@ export function PortfolioSelector({
   );
 }
 
+type InvestmentDialogItem = {
+  id: number;
+  symbol: string;
+  name: string;
+  type: string;
+  exchange?: string | null;
+  currentPrice: number | string | null;
+  totalQuantity: number | string | null;
+  averagePrice: number | string | null;
+  portfolioId: number | null;
+  currency?: string | null;
+};
+
 interface AssignPortfolioDialogProps {
-  investment: Investment;
+  investment: InvestmentDialogItem;
   portfolios: Portfolio[];
   open: boolean;
   onOpenChange: (open: boolean) => void;

@@ -18,9 +18,25 @@ import { StockDetailSheet } from "./stock-detail-sheet";
 import { PortfolioSelector } from "./portfolio-selector";
 import { BuyTransactionDialog } from "./buy-transaction-dialog";
 import type { Investment, InvestmentTransaction, Portfolio } from "@/lib/schema";
+import type { DisplayValue, InvestmentWithConversion } from "@/actions/investments";
+
+type InvestmentWithTransactions = Investment & { transactions: InvestmentTransaction[] };
+type DashboardInvestment =
+  | InvestmentWithTransactions
+  | (InvestmentWithTransactions & {
+      displayCurrency?: string;
+      conversionApplied?: boolean;
+      convertedValues?: {
+        currentValue: DisplayValue;
+        totalInvested: DisplayValue;
+        totalGainLoss: DisplayValue;
+        dayGainLoss: DisplayValue;
+      };
+    })
+  | InvestmentWithConversion;
 
 interface PortfolioDashboardProps {
-  investments: (Investment & { transactions: InvestmentTransaction[] })[];
+  investments: DashboardInvestment[];
   portfolios: Portfolio[];
   summary: {
     totalInvested: number;
@@ -48,13 +64,57 @@ export function PortfolioDashboard({
   onPortfolioChange: externalOnPortfolioChange
 }: PortfolioDashboardProps) {
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedInvestment, setSelectedInvestment] = useState<(Investment & { transactions: InvestmentTransaction[] }) | null>(null);
+  const [selectedInvestment, setSelectedInvestment] = useState<InvestmentWithTransactions | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [internalSelectedPortfolioId, setInternalSelectedPortfolioId] = useState<number | null>(null);
   
   // Use external state if provided, otherwise use internal state
   const selectedPortfolioId = externalSelectedPortfolioId !== undefined ? externalSelectedPortfolioId : internalSelectedPortfolioId;
   const setSelectedPortfolioId = externalOnPortfolioChange || setInternalSelectedPortfolioId;
+
+  const hasTransactions = (inv: DashboardInvestment): inv is InvestmentWithTransactions => {
+    return "transactions" in inv;
+  };
+
+  const hasConversionData = (inv: DashboardInvestment): inv is InvestmentWithConversion => {
+    return "currentValue" in inv && typeof inv.currentValue === "object" && inv.currentValue !== null && "amount" in inv.currentValue;
+  };
+
+  const getSummaryValues = (inv: DashboardInvestment) => {
+    if (hasConversionData(inv)) {
+      return {
+        totalInvested: inv.totalInvested.amount,
+        currentValue: inv.currentValue.amount,
+        totalGainLoss: inv.totalGainLoss.amount,
+        dayGainLoss: inv.dayGainLoss.amount,
+        totalGainLossPercent: inv.totalGainLossPercent,
+        dayGainLossPercent: inv.dayChangePercent,
+        isActive: inv.isActive,
+      };
+    }
+
+    if ("convertedValues" in inv && inv.convertedValues?.currentValue) {
+      return {
+        totalInvested: inv.convertedValues.totalInvested.amount,
+        currentValue: inv.convertedValues.currentValue.amount,
+        totalGainLoss: inv.convertedValues.totalGainLoss.amount,
+        dayGainLoss: inv.convertedValues.dayGainLoss.amount,
+        totalGainLossPercent: Number(inv.totalGainLossPercent || 0),
+        dayGainLossPercent: Number(inv.dayChangePercent || 0),
+        isActive: Boolean(inv.isActive),
+      };
+    }
+
+    return {
+      totalInvested: Number(inv.totalInvested || 0),
+      currentValue: Number(inv.currentValue || 0),
+      totalGainLoss: Number(inv.totalGainLoss || 0),
+      dayGainLoss: Number(inv.dayGainLoss || 0),
+      totalGainLossPercent: Number(inv.totalGainLossPercent || 0),
+      dayGainLossPercent: Number(inv.dayChangePercent || 0),
+      isActive: Boolean(inv.isActive),
+    };
+  };
 
   // Filter investments by selected portfolio
   const filteredInvestments = useMemo(() => {
@@ -77,13 +137,14 @@ export function PortfolioDashboard({
     let previousDayValue = 0;
 
     for (const inv of filteredInvestments) {
-      if (!inv.isActive) continue;
-      totalInvested += Number(inv.totalInvested || 0);
-      currentValue += Number(inv.currentValue || 0);
-      totalGainLoss += Number(inv.totalGainLoss || 0);
-      const invDayGainLoss = Number(inv.dayGainLoss || 0);
+      const values = getSummaryValues(inv);
+      if (!values.isActive) continue;
+      totalInvested += values.totalInvested;
+      currentValue += values.currentValue;
+      totalGainLoss += values.totalGainLoss;
+      const invDayGainLoss = values.dayGainLoss;
       dayGainLoss += invDayGainLoss;
-      previousDayValue += Number(inv.currentValue || 0) - invDayGainLoss;
+      previousDayValue += values.currentValue - invDayGainLoss;
     }
 
     return {
@@ -93,7 +154,7 @@ export function PortfolioDashboard({
       totalGainLossPercent: totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0,
       dayGainLoss,
       dayGainLossPercent: previousDayValue > 0 ? (dayGainLoss / previousDayValue) * 100 : 0,
-      investmentCount: filteredInvestments.filter(i => i.isActive).length,
+      investmentCount: filteredInvestments.filter(i => ("isActive" in i ? Boolean(i.isActive) : true)).length,
       currency: globalSummary.currency,
     };
   }, [filteredInvestments, selectedPortfolioId, globalSummary]);
@@ -115,7 +176,10 @@ export function PortfolioDashboard({
     }
   };
 
-  const handleViewDetails = (investment: Investment & { transactions: InvestmentTransaction[] }) => {
+  const handleViewDetails = (investment: DashboardInvestment) => {
+    if (!hasTransactions(investment)) {
+      return;
+    }
     setSelectedInvestment(investment);
     setDetailOpen(true);
   };
@@ -230,7 +294,7 @@ export function PortfolioDashboard({
       <HoldingsTable 
         investments={filteredInvestments} 
         portfolios={portfolios}
-        currency={currency}
+        displayCurrency={currency}
         onViewDetails={handleViewDetails}
         hidePortfolioTag={hidePortfolioSelector}
       />

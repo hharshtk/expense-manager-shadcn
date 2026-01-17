@@ -38,8 +38,21 @@ const addPurchaseSchema = z.object({
 
 type AddPurchaseForm = z.infer<typeof addPurchaseSchema>;
 
+type InvestmentDialogItem = {
+  id: number;
+  symbol: string;
+  name: string;
+  type: string;
+  exchange?: string | null;
+  currentPrice: number | string | null;
+  totalQuantity: number | string | null;
+  averagePrice: number | string | null;
+  portfolioId: number | null;
+  currency?: string | null;
+};
+
 interface AddPurchaseDialogProps {
-  investment: Investment;
+  investment: InvestmentDialogItem;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

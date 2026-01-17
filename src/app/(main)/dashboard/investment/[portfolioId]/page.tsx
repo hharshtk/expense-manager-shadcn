@@ -1,11 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import {
   getPortfolioById,
-  getInvestmentsByPortfolio,
+  getInvestmentsByPortfolioWithConversion,
   getPortfolios,
 } from "@/actions/investments";
 import { PortfolioDetailClient } from "../_components/portfolio-detail-client";
-import type { Investment, InvestmentTransaction, Portfolio } from "@/lib/schema";
 
 interface PageProps {
   params: Promise<{ portfolioId: string }>;
@@ -21,7 +20,7 @@ export default async function PortfolioDetailPage({ params }: PageProps) {
 
   const [portfolioResult, investmentsResult, portfoliosResult] = await Promise.all([
     getPortfolioById(portfolioId),
-    getInvestmentsByPortfolio(portfolioId),
+    getInvestmentsByPortfolioWithConversion(portfolioId),
     getPortfolios(),
   ]);
 

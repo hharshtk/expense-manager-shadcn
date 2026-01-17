@@ -39,8 +39,21 @@ const sellTransactionSchema = z.object({
 
 type SellTransactionForm = z.infer<typeof sellTransactionSchema>;
 
+type InvestmentDialogItem = {
+  id: number;
+  symbol: string;
+  name: string;
+  type: string;
+  exchange?: string | null;
+  currentPrice: number | string | null;
+  totalQuantity: number | string | null;
+  averagePrice: number | string | null;
+  portfolioId: number | null;
+  currency?: string | null;
+};
+
 interface SellTransactionDialogProps {
-  investment: Investment;
+  investment: InvestmentDialogItem;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

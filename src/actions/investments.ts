@@ -18,7 +18,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getExchangeRate as fetchExchangeRate } from "@/lib/exchange-rates";
+import { getExchangeRate as fetchExchangeRate, getExchangeRateDetails } from "@/lib/exchange-rates";
 import {
   getStockHistory,
   getStockPrice,
@@ -35,6 +35,27 @@ export async function getExchangeRate(from: string, to: string): Promise<number>
   return fetchExchangeRate(from, to);
 }
 
+/**
+ * Get current user's display currency
+ */
+export async function getUserDisplayCurrency(): Promise<string> {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return "USD";
+  }
+  
+  try {
+    const userData = await db
+      .select({ defaultCurrency: users.defaultCurrency })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    
+    return userData[0]?.defaultCurrency || "USD";
+  } catch {
+    return "USD";
+  }
+}
 
 /**
  * Get all investments for the current user
@@ -1426,5 +1447,492 @@ export async function deleteInvestment(id: number) {
   } catch (error) {
     console.error("Delete investment error:", error);
     return { success: false, error: "Failed to delete investment" };
+  }
+}
+
+// ============================================================================
+// CONVERSION-AWARE FUNCTIONS
+// ============================================================================
+
+import { 
+  money,
+  type Money, 
+  type ConvertedMoney,
+  convertMoney,
+  getExchangeRateWithDetails,
+  type FxRate,
+} from "@/lib/fx";
+
+/**
+ * Represents a monetary value that may have been converted
+ */
+export interface DisplayValue {
+  /** The display amount (in user's currency if converted) */
+  amount: number;
+  /** The display currency */
+  currency: string;
+  /** Original amount before conversion (if different) */
+  originalAmount?: number;
+  /** Original currency (if different) */
+  originalCurrency?: string;
+  /** Exchange rate used (if converted) */
+  exchangeRate?: number;
+  /** Date of the exchange rate (if converted) */
+  rateDate?: string;
+  /** Whether a conversion was applied */
+  wasConverted: boolean;
+}
+
+/**
+ * Investment with all monetary values prepared for display
+ * Values are converted to user's display currency with full transparency
+ */
+export interface InvestmentWithConversion {
+  id: number;
+  symbol: string;
+  name: string;
+  type: string;
+  exchange: string | null;
+  portfolioId: number | null;
+  isActive: boolean;
+  totalQuantity: number;
+  
+  // Native values (in investment's original currency)
+  nativeCurrency: string;
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  
+  // Display values (converted to user's currency if needed)
+  currentValue: DisplayValue;
+  totalInvested: DisplayValue;
+  totalGainLoss: DisplayValue;
+  dayGainLoss: DisplayValue;
+  
+  // Percentages (no conversion needed)
+  totalGainLossPercent: number;
+  dayChangePercent: number;
+  
+  // Conversion metadata
+  displayCurrency: string;
+  conversionApplied: boolean;
+  exchangeRate?: number;
+  rateDate?: string;
+}
+
+/**
+ * Portfolio summary with conversion transparency
+ */
+export interface PortfolioSummaryWithConversion {
+  totalInvested: DisplayValue;
+  currentValue: DisplayValue;
+  totalGainLoss: DisplayValue;
+  dayGainLoss: DisplayValue;
+  totalGainLossPercent: number;
+  dayGainLossPercent: number;
+  investmentCount: number;
+  displayCurrency: string;
+  
+  // Conversion metadata
+  hasConversions: boolean;
+  conversionCount: number;
+  conversionsApplied: Array<{
+    symbol: string;
+    fromCurrency: string;
+    rate: number;
+    rateDate: string;
+  }>;
+  
+  bestPerformer: { symbol: string; name: string; gainPercent: number } | null;
+  worstPerformer: { symbol: string; name: string; gainPercent: number } | null;
+}
+
+/**
+ * Create a DisplayValue from conversion
+ */
+function toDisplayValue(converted: ConvertedMoney): DisplayValue {
+  return {
+    amount: converted.amount,
+    currency: converted.currency,
+    originalAmount: converted.wasConverted ? converted.originalAmount : undefined,
+    originalCurrency: converted.wasConverted ? converted.originalCurrency : undefined,
+    exchangeRate: converted.wasConverted ? converted.exchangeRate : undefined,
+    rateDate: converted.wasConverted ? converted.rateDate : undefined,
+    wasConverted: converted.wasConverted,
+  };
+}
+
+/**
+ * Get investments with all values converted to user's display currency
+ * Includes full conversion transparency for each value
+ */
+export async function getInvestmentsWithConversion() {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    // Get user's preferred display currency
+    const userData = await db
+      .select({ defaultCurrency: users.defaultCurrency })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    
+    const displayCurrency = userData[0]?.defaultCurrency || "USD";
+
+    // Get all active investments
+    const userInvestments = await db
+      .select()
+      .from(investments)
+      .where(
+        and(
+          eq(investments.userId, user.id),
+          eq(investments.isActive, true)
+        )
+      )
+      .orderBy(desc(investments.currentValue));
+
+    // Convert each investment
+    const investmentsWithConversion: InvestmentWithConversion[] = await Promise.all(
+      userInvestments.map(async (inv) => {
+        const nativeCurrency = inv.currency || "USD";
+        const needsConversion = nativeCurrency !== displayCurrency;
+        
+        // Get exchange rate if needed
+        let fxRate: FxRate | null = null;
+        if (needsConversion) {
+          fxRate = await getExchangeRateWithDetails(nativeCurrency, displayCurrency);
+        }
+        
+        const rate = fxRate?.rate ?? 1;
+        const rateDate = fxRate?.date;
+        
+        // Convert monetary values
+        const currentValue = await convertMoney(
+          money(Number(inv.currentValue || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        const totalInvested = await convertMoney(
+          money(Number(inv.totalInvested || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        const totalGainLoss = await convertMoney(
+          money(Number(inv.totalGainLoss || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        const dayGainLoss = await convertMoney(
+          money(Number(inv.dayGainLoss || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        return {
+          id: inv.id,
+          symbol: inv.symbol,
+          name: inv.name,
+          type: inv.type,
+          exchange: inv.exchange,
+          portfolioId: inv.portfolioId,
+          isActive: inv.isActive ?? true,
+          totalQuantity: Number(inv.totalQuantity || 0),
+          
+          nativeCurrency,
+          quantity: Number(inv.totalQuantity || 0),
+          averagePrice: Number(inv.averagePrice || 0),
+          currentPrice: Number(inv.currentPrice || 0),
+          
+          currentValue: toDisplayValue(currentValue),
+          totalInvested: toDisplayValue(totalInvested),
+          totalGainLoss: toDisplayValue(totalGainLoss),
+          dayGainLoss: toDisplayValue(dayGainLoss),
+          
+          totalGainLossPercent: Number(inv.totalGainLossPercent || 0),
+          dayChangePercent: Number(inv.dayChangePercent || 0),
+          
+          displayCurrency,
+          conversionApplied: needsConversion,
+          exchangeRate: needsConversion ? rate : undefined,
+          rateDate: needsConversion ? rateDate : undefined,
+        };
+      })
+    );
+
+    return { 
+      success: true, 
+      data: investmentsWithConversion,
+      displayCurrency,
+    };
+  } catch (error) {
+    console.error("Get investments with conversion error:", error);
+    return { success: false, error: "Failed to fetch investments" };
+  }
+}
+
+/**
+ * Get enhanced portfolio summary with full conversion transparency
+ * All monetary values include original amount and exchange rate used
+ */
+export async function getPortfolioSummaryWithConversion(): Promise<
+  { success: true; data: PortfolioSummaryWithConversion } | 
+  { success: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    // Get user's preferred display currency
+    const userData = await db
+      .select({ defaultCurrency: users.defaultCurrency })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    
+    const displayCurrency = userData[0]?.defaultCurrency || "USD";
+
+    // Get all active investments
+    const userInvestments = await db
+      .select()
+      .from(investments)
+      .where(
+        and(
+          eq(investments.userId, user.id),
+          eq(investments.isActive, true)
+        )
+      );
+
+    // Track totals and conversions
+    let totalInvested = 0;
+    let currentValue = 0;
+    let totalGainLoss = 0;
+    let dayGainLoss = 0;
+    let previousDayValue = 0;
+    
+    const conversionsApplied: Array<{
+      symbol: string;
+      fromCurrency: string;
+      rate: number;
+      rateDate: string;
+    }> = [];
+
+    // Cache exchange rates
+    const fxRateCache: Record<string, FxRate | null> = {};
+    
+    let bestPerformer: { symbol: string; name: string; gainPercent: number } | null = null;
+    let worstPerformer: { symbol: string; name: string; gainPercent: number } | null = null;
+
+    for (const inv of userInvestments) {
+      const nativeCurrency = inv.currency || "USD";
+      
+      // Get exchange rate (cached)
+      let rate = 1;
+      let rateDate = new Date().toISOString().split("T")[0];
+      
+      if (nativeCurrency !== displayCurrency) {
+        const cacheKey = `${nativeCurrency}_${displayCurrency}`;
+        
+        if (!(cacheKey in fxRateCache)) {
+          fxRateCache[cacheKey] = await getExchangeRateWithDetails(nativeCurrency, displayCurrency);
+        }
+        
+        const fxRate = fxRateCache[cacheKey];
+        if (fxRate) {
+          rate = fxRate.rate;
+          rateDate = fxRate.date;
+          
+          // Track this conversion
+          conversionsApplied.push({
+            symbol: inv.symbol,
+            fromCurrency: nativeCurrency,
+            rate,
+            rateDate,
+          });
+        }
+      }
+
+      // Convert and accumulate values
+      const invCurrentValue = Number(inv.currentValue || 0) * rate;
+      const invDayGainLoss = Number(inv.dayGainLoss || 0) * rate;
+      
+      totalInvested += Number(inv.totalInvested || 0) * rate;
+      currentValue += invCurrentValue;
+      totalGainLoss += Number(inv.totalGainLoss || 0) * rate;
+      dayGainLoss += invDayGainLoss;
+      previousDayValue += invCurrentValue - invDayGainLoss;
+
+      // Track best/worst performers (using percentage, not affected by conversion)
+      const gainPercent = Number(inv.totalGainLossPercent || 0);
+      if (!bestPerformer || gainPercent > bestPerformer.gainPercent) {
+        bestPerformer = { symbol: inv.symbol, name: inv.name, gainPercent };
+      }
+      if (!worstPerformer || gainPercent < worstPerformer.gainPercent) {
+        worstPerformer = { symbol: inv.symbol, name: inv.name, gainPercent };
+      }
+    }
+
+    const totalGainLossPercent = totalInvested > 0 
+      ? (totalGainLoss / totalInvested) * 100 
+      : 0;
+    
+    const dayGainLossPercent = previousDayValue > 0 
+      ? (dayGainLoss / previousDayValue) * 100 
+      : 0;
+
+    const hasConversions = conversionsApplied.length > 0;
+
+    const summary: PortfolioSummaryWithConversion = {
+      totalInvested: {
+        amount: totalInvested,
+        currency: displayCurrency,
+        wasConverted: hasConversions,
+      },
+      currentValue: {
+        amount: currentValue,
+        currency: displayCurrency,
+        wasConverted: hasConversions,
+      },
+      totalGainLoss: {
+        amount: totalGainLoss,
+        currency: displayCurrency,
+        wasConverted: hasConversions,
+      },
+      dayGainLoss: {
+        amount: dayGainLoss,
+        currency: displayCurrency,
+        wasConverted: hasConversions,
+      },
+      totalGainLossPercent,
+      dayGainLossPercent,
+      investmentCount: userInvestments.length,
+      displayCurrency,
+      hasConversions,
+      conversionCount: conversionsApplied.length,
+      conversionsApplied,
+      bestPerformer,
+      worstPerformer,
+    };
+
+    return { success: true, data: summary };
+  } catch (error) {
+    console.error("Get portfolio summary with conversion error:", error);
+    return { success: false, error: "Failed to fetch portfolio summary" };
+  }
+}
+
+/**
+ * Get investments for a specific portfolio with conversion transparency
+ */
+export async function getInvestmentsByPortfolioWithConversion(portfolioId: number) {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  try {
+    // Verify portfolio ownership
+    const portfolio = await db
+      .select()
+      .from(portfolios)
+      .where(
+        and(
+          eq(portfolios.id, portfolioId),
+          eq(portfolios.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (portfolio.length === 0) {
+      return { success: false, error: "Portfolio not found" };
+    }
+
+    // Get user's preferred display currency
+    const userData = await db
+      .select({ defaultCurrency: users.defaultCurrency })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    
+    const displayCurrency = userData[0]?.defaultCurrency || "USD";
+
+    // Get portfolio investments
+    const portfolioInvestments = await db
+      .select()
+      .from(investments)
+      .where(
+        and(
+          eq(investments.userId, user.id),
+          eq(investments.portfolioId, portfolioId)
+        )
+      )
+      .orderBy(desc(investments.currentValue));
+
+    // Convert each investment with transactions
+    const investmentsWithConversion = await Promise.all(
+      portfolioInvestments.map(async (inv) => {
+        const nativeCurrency = inv.currency || "USD";
+        const needsConversion = nativeCurrency !== displayCurrency;
+        
+        // Get exchange rate if needed
+        let fxRate: FxRate | null = null;
+        if (needsConversion) {
+          fxRate = await getExchangeRateWithDetails(nativeCurrency, displayCurrency);
+        }
+        
+        // Get transactions
+        const txns = await db
+          .select()
+          .from(investmentTransactions)
+          .where(eq(investmentTransactions.investmentId, inv.id))
+          .orderBy(desc(investmentTransactions.date));
+        
+        // Convert monetary values
+        const currentValue = await convertMoney(
+          money(Number(inv.currentValue || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        const totalInvested = await convertMoney(
+          money(Number(inv.totalInvested || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        const totalGainLoss = await convertMoney(
+          money(Number(inv.totalGainLoss || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        const dayGainLoss = await convertMoney(
+          money(Number(inv.dayGainLoss || 0), nativeCurrency),
+          displayCurrency
+        );
+        
+        return {
+          ...inv,
+          transactions: txns,
+          displayCurrency,
+          conversionApplied: needsConversion,
+          convertedValues: {
+            currentValue: toDisplayValue(currentValue),
+            totalInvested: toDisplayValue(totalInvested),
+            totalGainLoss: toDisplayValue(totalGainLoss),
+            dayGainLoss: toDisplayValue(dayGainLoss),
+          },
+        };
+      })
+    );
+
+    return { 
+      success: true, 
+      data: investmentsWithConversion,
+      displayCurrency,
+    };
+  } catch (error) {
+    console.error("Get investments by portfolio with conversion error:", error);
+    return { success: false, error: "Failed to fetch investments" };
   }
 }
