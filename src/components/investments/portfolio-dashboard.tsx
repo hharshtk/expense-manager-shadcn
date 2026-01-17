@@ -216,79 +216,53 @@ export function PortfolioDashboard({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Portfolio Value</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+      {/* Summary - Compact Row */}
+      <Card className="p-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="text-center lg:text-left">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Portfolio Value</p>
+            <p className="text-lg font-bold flex items-center justify-center lg:justify-start">
               {formatCurrency(summary.currentValue, { currency })}
-            </div>
-            <div className={`flex items-center text-xs mt-1 ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
+            </p>
+            <p className={`text-xs flex items-center justify-center lg:justify-start ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
               {isDayProfit ? <ArrowUpRight className="h-3 w-3 mr-1" /> : <ArrowDownRight className="h-3 w-3 mr-1" />}
-              {formatCurrency(Math.abs(summary.dayGainLoss), { currency })} ({summary.dayGainLossPercent.toFixed(2)}%) today
-            </div>
-          </CardContent>
-        </Card>
+              {formatCurrency(Math.abs(summary.dayGainLoss), { currency })} ({summary.dayGainLossPercent.toFixed(2)}%)
+            </p>
+          </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Invested</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <div className="text-center lg:text-left">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Invested</p>
+            <p className="text-lg font-bold flex items-center justify-center lg:justify-start">
               {formatCurrency(summary.totalInvested, { currency })}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across {summary.investmentCount} holding{summary.investmentCount !== 1 ? "s" : ""}
             </p>
-          </CardContent>
-        </Card>
+            <p className="text-xs text-muted-foreground flex items-center justify-center lg:justify-start">
+              {summary.investmentCount} holding{summary.investmentCount !== 1 ? "s" : ""}
+            </p>
+          </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Returns</CardTitle>
-            {isProfit ? (
-              <ArrowUpRight className="h-4 w-4 text-green-500" />
-            ) : (
-              <ArrowDownRight className="h-4 w-4 text-red-500" />
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${isProfit ? "text-green-500" : "text-red-500"}`}>
+          <div className="text-center lg:text-left">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Returns</p>
+            <p className={`text-lg font-bold flex items-center justify-center lg:justify-start ${isProfit ? "text-green-500" : "text-red-500"}`}>
               {isProfit ? "+" : ""}{formatCurrency(summary.totalGainLoss, { currency })}
-            </div>
-            <p className={`text-xs mt-1 ${isProfit ? "text-green-500" : "text-red-500"}`}>
-              {isProfit ? "+" : ""}{summary.totalGainLossPercent.toFixed(2)}% all time
             </p>
-          </CardContent>
-        </Card>
+            <p className={`text-xs flex items-center justify-center lg:justify-start ${isProfit ? "text-green-500" : "text-red-500"}`}>
+              {isProfit ? "+" : ""}{summary.totalGainLossPercent.toFixed(2)}%
+            </p>
+          </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Change</CardTitle>
-            {isDayProfit ? (
-              <ArrowUpRight className="h-4 w-4 text-green-500" />
-            ) : (
-              <ArrowDownRight className="h-4 w-4 text-red-500" />
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
+          <div className="text-center lg:text-left">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Today's Change</p>
+            <p className={`text-lg font-bold flex items-center justify-center lg:justify-start ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
               {isDayProfit ? "+" : ""}{formatCurrency(summary.dayGainLoss, { currency })}
-            </div>
-            <p className={`text-xs mt-1 ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
+            </p>
+            <p className={`text-xs flex items-center justify-center lg:justify-start ${isDayProfit ? "text-green-500" : "text-red-500"}`}>
               {isDayProfit ? "+" : ""}{summary.dayGainLossPercent.toFixed(2)}%
             </p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Holdings Table */}
       <HoldingsTable 

@@ -34,14 +34,14 @@ export function InvestmentPageClient({ portfolios }: InvestmentPageClientProps) 
   };
 
   return (
-    <div className="flex justify-between items-start">
+    <div className="flex justify-between items-center py-2">
       <div>
-        <h1 className="text-xl font-bold tracking-tight">Investment Portfolios</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-lg font-bold tracking-tight">Investment Portfolios</h1>
+        <p className="text-xs text-muted-foreground">
           Manage and track your investment portfolios
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <PortfolioSelector
           portfolios={portfolios}
           selectedPortfolioId={null}
@@ -53,13 +53,14 @@ export function InvestmentPageClient({ portfolios }: InvestmentPageClientProps) 
           size="sm"
           onClick={handleRefreshPrices}
           disabled={refreshing}
+          className="h-8"
         >
           {refreshing ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
+            <RefreshCw className="h-3 w-3 animate-spin" />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-3 w-3" />
           )}
-          <span className="ml-2">Refresh Prices</span>
+          <span className="text-xs ml-1">Refresh</span>
         </Button>
         <BuyTransactionDialog portfolios={portfolios} />
       </div>

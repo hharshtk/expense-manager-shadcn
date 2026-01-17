@@ -107,40 +107,35 @@ export function PortfolioDetailClient({
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div className="flex justify-between items-start">
-        <div className="flex items-start gap-4">
+    <div className="container mx-auto py-4 space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
           <Link href="/dashboard/investment">
-            <Button variant="ghost" size="icon" className="mt-1">
-              <ArrowLeft className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <div
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: portfolio.color || "#6366f1" }}
-              />
-              <h1 className="text-3xl font-bold tracking-tight">{portfolio.name}</h1>
-            </div>
-            {portfolio.description && (
-              <p className="text-muted-foreground mt-1 ml-7">{portfolio.description}</p>
-            )}
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight">{portfolio.name}</h1>
           </div>
+          {portfolio.description && (
+            <p className="text-sm text-muted-foreground">{portfolio.description}</p>
+          )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={handleRefreshPrices}
             disabled={refreshing}
+            className="h-8"
           >
             {refreshing ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
+              <RefreshCw className="h-3 w-3 animate-spin" />
             ) : (
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3 w-3" />
             )}
-            <span className="ml-2">Refresh</span>
+            <span className="text-xs ml-1">Refresh</span>
           </Button>
           <BuyTransactionDialog portfolios={portfolios} defaultPortfolioId={portfolioId} />
         </div>
