@@ -48,9 +48,9 @@ export function OverviewDashboard({ defaultCurrency, initialDateRange, data }: O
   };
 
   return (
-    <div className="@container/main flex flex-col gap-4 md:gap-6">
+    <div className="@container/main flex flex-col gap-2">
       {/* Header Section with Date Range Selector */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Financial Overview</h1>
           <p className="text-muted-foreground text-sm">

@@ -1,13 +1,21 @@
 import { db } from "@/lib/db";
 import { expenses, financialAccounts, budgets, categories, investments, portfolios } from "@/lib/schema";
 import { and, eq, gte, lte, desc, sql, sum } from "drizzle-orm";
-import { format } from "date-fns";
+import { format, differenceInDays, subDays } from "date-fns";
 
 export async function getOverviewSummary(userId: number, from: Date, to: Date) {
   const fromStr = format(from, "yyyy-MM-dd");
   const toStr = format(to, "yyyy-MM-dd");
 
-  const result = await db
+  // Calculate previous period
+  const duration = differenceInDays(to, from);
+  const prevTo = from;
+  const prevFrom = subDays(from, duration);
+  const prevFromStr = format(prevFrom, "yyyy-MM-dd");
+  const prevToStr = format(prevTo, "yyyy-MM-dd");
+
+  // Current period
+  const currentResult = await db
     .select({
       type: expenses.type,
       total: sum(expenses.amount),
@@ -22,16 +30,42 @@ export async function getOverviewSummary(userId: number, from: Date, to: Date) {
     )
     .groupBy(expenses.type);
 
-  const income = Number(result.find((r) => r.type === "income")?.total || 0);
-  const expense = Number(result.find((r) => r.type === "expense")?.total || 0);
+  // Previous period
+  const prevResult = await db
+    .select({
+      type: expenses.type,
+      total: sum(expenses.amount),
+    })
+    .from(expenses)
+    .where(
+      and(
+        eq(expenses.userId, userId),
+        gte(expenses.date, prevFromStr),
+        lte(expenses.date, prevToStr)
+      )
+    )
+    .groupBy(expenses.type);
+
+  const income = Number(currentResult.find((r) => r.type === "income")?.total || 0);
+  const expense = Number(currentResult.find((r) => r.type === "expense")?.total || 0);
   const savings = income - expense;
   const savingsRate = income > 0 ? (savings / income) * 100 : 0;
+
+  const prevIncome = Number(prevResult.find((r) => r.type === "income")?.total || 0);
+  const prevExpense = Number(prevResult.find((r) => r.type === "expense")?.total || 0);
+
+  const incomeChange = prevIncome !== 0 ? ((income - prevIncome) / prevIncome) * 100 : 0;
+  const expenseChange = prevExpense !== 0 ? ((expense - prevExpense) / prevExpense) * 100 : 0;
+  const savingsChange = prevIncome - prevExpense !== 0 ? ((savings - (prevIncome - prevExpense)) / Math.abs(prevIncome - prevExpense)) * 100 : 0;
 
   return {
     income,
     expenses: expense,
     savings,
     savingsRate,
+    incomeChange,
+    expenseChange,
+    savingsChange,
   };
 }
 
