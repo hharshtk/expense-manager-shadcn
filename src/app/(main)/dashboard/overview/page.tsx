@@ -27,7 +27,7 @@ export default async function OverviewPage({
   const defaultCurrency = await getUserDefaultCurrency();
 
   const from = resolvedSearchParams.from ? parseISO(resolvedSearchParams.from) : startOfMonth(new Date());
-  const to = resolvedSearchParams.to ? parseISO(resolvedSearchParams.to) : endOfMonth(new Date());
+  const to = resolvedSearchParams.to ? parseISO(resolvedSearchParams.to) : new Date();
 
   const [summary, trends, accounts, transactions, monthly, category] = await Promise.all([
     getOverviewSummary(userId, from, to),

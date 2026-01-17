@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { format, startOfMonth, startOfYear, subDays, subMonths } from "date-fns";
+import { format, startOfMonth, startOfYear, subDays, subMonths, endOfMonth, isSameDay } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 
@@ -24,7 +24,7 @@ interface DateRangeSelectorProps {
 }
 
 export function DateRangeSelector({ dateRange, onDateRangeChange, className, isLoading }: DateRangeSelectorProps) {
-  const [selectedPreset, setSelectedPreset] = React.useState<TimePeriodValue>("30d");
+  const [selectedPreset, setSelectedPreset] = React.useState<TimePeriodValue>("this-month");
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [tempDateRange, setTempDateRange] = React.useState<DateRange | undefined>(dateRange);
 
@@ -73,12 +73,46 @@ export function DateRangeSelector({ dateRange, onDateRangeChange, className, isL
     }
   };
 
-  // Initialize with default 30 days on mount
+  // Initialize with default this month on mount
   React.useEffect(() => {
     if (!dateRange) {
-      handlePresetChange("30d");
+      handlePresetChange("this-month");
     }
   }, []);
+
+  // Sync selectedPreset with dateRange
+  React.useEffect(() => {
+    if (!dateRange?.from || !dateRange?.to) return;
+
+    const now = new Date();
+    const from = dateRange.from;
+    const to = dateRange.to;
+
+    // Check for "this-month"
+    if (isSameDay(from, startOfMonth(now)) && isSameDay(to, now)) {
+      setSelectedPreset("this-month");
+      return;
+    }
+
+    // Check for "this-year"
+    if (isSameDay(from, startOfYear(now)) && isSameDay(to, now)) {
+      setSelectedPreset("this-year");
+      return;
+    }
+
+    // Check for day-based presets
+    const diffTime = Math.abs(to.getTime() - from.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const preset = timePeriodPresets.find(p => p.days > 0 && p.days === diffDays);
+    if (preset) {
+      setSelectedPreset(preset.value);
+      return;
+    }
+
+    // If no preset matches, set to custom
+    setSelectedPreset("custom" as TimePeriodValue);
+  }, [dateRange]);
 
   return (
     <div className={cn("flex flex-col gap-2 sm:flex-row sm:items-center", className)}>

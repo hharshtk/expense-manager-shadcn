@@ -11,6 +11,7 @@ export const timePeriodPresets = [
   { label: "This month", value: "this-month", days: -1 },
   { label: "This year", value: "this-year", days: -2 },
   { label: "All time", value: "all", days: -3 },
+  { label: "Custom", value: "custom", days: -4 },
 ] as const;
 
 export type TimePeriodValue = (typeof timePeriodPresets)[number]["value"];
