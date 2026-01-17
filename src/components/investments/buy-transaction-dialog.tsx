@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -76,9 +76,11 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [fetchingPrice, setFetchingPrice] = useState(false);
   const [activeTab, setActiveTab] = useState<AssetTab>("stock");
   const [selectedCountry, setSelectedCountry] = useState<CountryFilter>("US");
+  const latestSearchId = useRef(0);
 
   const form = useForm<BuyTransactionForm>({
     resolver: zodResolver(buyTransactionSchema),
@@ -110,6 +112,48 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
     setSearchResults([]);
   }, [selectedCountry]);
 
+  useEffect(() => {
+    if (!searchOpen) {
+      return;
+    }
+
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    const searchId = ++latestSearchId.current;
+    const timeout = setTimeout(async () => {
+      try {
+        const result = await searchInvestments(trimmed, {
+          assetType: activeTab,
+          country: activeTab === "stock" ? selectedCountry : undefined,
+        });
+        if (latestSearchId.current !== searchId) {
+          return;
+        }
+        if (result.success && result.data) {
+          setSearchResults(result.data);
+        } else {
+          toast.error(result.error);
+        }
+      } catch (error) {
+        if (latestSearchId.current === searchId) {
+          toast.error("Failed to search");
+        }
+      } finally {
+        if (latestSearchId.current === searchId) {
+          setSearchLoading(false);
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [searchQuery, searchOpen, activeTab, selectedCountry]);
+
   // Update default portfolio when prop changes
   useEffect(() => {
     if (defaultPortfolioId) {
@@ -117,28 +161,8 @@ export function BuyTransactionDialog({ portfolios, defaultPortfolioId }: BuyTran
     }
   }, [defaultPortfolioId, form]);
 
-  const handleSearch = async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const result = await searchInvestments(query, {
-        assetType: activeTab,
-        country: activeTab === "stock" ? selectedCountry : undefined,
-      });
-      if (result.success && result.data) {
-        setSearchResults(result.data);
-      } else {
-        toast.error(result.error);
-      }
-    } catch (error) {
-      toast.error("Failed to search");
-    } finally {
-      setSearchLoading(false);
-    }
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
   };
 
   const handleSelectStock = async (stock: any) => {
