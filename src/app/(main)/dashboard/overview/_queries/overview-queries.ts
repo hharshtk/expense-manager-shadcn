@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { expenses, financialAccounts, budgets, categories } from "@/lib/schema";
+import { expenses, financialAccounts, budgets, categories, investments, portfolios } from "@/lib/schema";
 import { and, eq, gte, lte, desc, sql, sum } from "drizzle-orm";
 import { format } from "date-fns";
 
@@ -180,4 +180,82 @@ export async function getSpendingByCategory(userId: number, from: Date, to: Date
     value: Number(r.amount || 0),
     color: r.color || "#cccccc",
   }));
+}
+
+export async function getInvestmentOverview(userId: number) {
+  try {
+    // Get portfolio summary
+    const portfoliosResult = await db
+      .select({
+        id: portfolios.id,
+        name: portfolios.name,
+        totalInvested: sql<number>`COALESCE(SUM(CAST(${investments.totalInvested} AS DECIMAL)), 0)`,
+        currentValue: sql<number>`COALESCE(SUM(CAST(${investments.totalInvested} AS DECIMAL) + CAST(${investments.totalGainLoss} AS DECIMAL)), 0)`,
+        investmentCount: sql<number>`COUNT(${investments.id})`,
+      })
+      .from(portfolios)
+      .leftJoin(investments, eq(portfolios.id, investments.portfolioId))
+      .where(
+        and(
+          eq(portfolios.userId, userId),
+          eq(portfolios.isActive, true),
+          eq(investments.isActive, true)
+        )
+      )
+      .groupBy(portfolios.id, portfolios.name);
+
+    // Get investment type distribution
+    const typeDistribution = await db
+      .select({
+        type: investments.type,
+        totalValue: sql<number>`COALESCE(SUM(CAST(${investments.totalInvested} AS DECIMAL) + CAST(${investments.totalGainLoss} AS DECIMAL)), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(investments)
+      .innerJoin(portfolios, eq(investments.portfolioId, portfolios.id))
+      .where(
+        and(
+          eq(portfolios.userId, userId),
+          eq(portfolios.isActive, true),
+          eq(investments.isActive, true)
+        )
+      )
+      .groupBy(investments.type);
+
+    const totalInvested = portfoliosResult.reduce((sum, p) => sum + Number(p.totalInvested || 0), 0);
+    const totalCurrentValue = portfoliosResult.reduce((sum, p) => sum + Number(p.currentValue || 0), 0);
+    const totalGainLoss = totalCurrentValue - totalInvested;
+    const totalGainLossPercent = totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
+    const portfolioCount = portfoliosResult.length;
+    const totalInvestmentCount = portfoliosResult.reduce((sum, p) => sum + Number(p.investmentCount || 0), 0);
+
+    return {
+      summary: {
+        totalInvested,
+        totalCurrentValue,
+        totalGainLoss,
+        totalGainLossPercent,
+        portfolioCount,
+        totalInvestmentCount,
+      },
+      typeDistribution: typeDistribution.map(t => ({
+        type: t.type,
+        value: Number(t.totalValue || 0),
+        count: Number(t.count || 0),
+      })),
+    };
+  } catch (error) {
+    console.error("Error fetching investment overview:", error);
+    return {
+      summary: {
+        totalInvested: 0,
+        totalCurrentValue: 0,
+        totalGainLoss: 0,
+        totalGainLossPercent: 0,
+        portfolioCount: 0,
+        totalInvestmentCount: 0,
+      },
+      typeDistribution: [],
+    };
+  }
 }

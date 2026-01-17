@@ -64,13 +64,13 @@ export function OverviewDashboard({ defaultCurrency, initialDateRange, data }: O
       <SummaryCards currency={defaultCurrency} data={data.summary} />
 
       {/* Charts Section - Row 2 */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <MonthlyOverviewChart currency={defaultCurrency} data={data.monthly} />
-        </div>
-        <div className="xl:col-span-1">
-          <SpendingByCategoryChart currency={defaultCurrency} data={data.category} />
-        </div>
+      <div className="w-full">
+        <SpendingByCategoryChart currency={defaultCurrency} data={data.category} />
+      </div>
+
+      {/* Monthly Overview - Full Width Row */}
+      <div className="w-full">
+        <MonthlyOverviewChart currency={defaultCurrency} data={data.monthly} />
       </div>
 
       {/* Accounts and Bills */}
