@@ -36,8 +36,8 @@ export function InvestmentPageClient({ portfolios }: InvestmentPageClientProps) 
   return (
     <div className="flex justify-between items-start">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Investment Portfolios</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-xl font-bold tracking-tight">Investment Portfolios</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Manage and track your investment portfolios
         </p>
       </div>

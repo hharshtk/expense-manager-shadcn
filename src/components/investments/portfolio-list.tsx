@@ -187,7 +187,7 @@ export function PortfolioList({ portfolios, investments, currency }: PortfolioLi
 
       {/* Portfolio Cards */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">Your Portfolios</h2>
+        <h2 className="text-lg font-semibold mb-4">Your Portfolios</h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {portfoliosWithStats.map((portfolio) => {
             const portfolioIsProfit = portfolio.totalGainLoss >= 0;

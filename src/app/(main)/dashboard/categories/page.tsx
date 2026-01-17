@@ -29,7 +29,7 @@ export default async function CategoriesPage() {
   // The types match mostly, except for invalid extra props? No, intersection is fine.
 
   return (
-    <div className="flex flex-col gap-8 p-8">
+    <div className="@container/main flex flex-col gap-4">
       <CategoryList categories={categories} />
     </div>
   );

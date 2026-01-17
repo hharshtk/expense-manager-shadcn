@@ -64,8 +64,8 @@ export function CategoryList({ categories }: CategoryListProps) {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
-          <p className="text-muted-foreground">Manage your expense and income categories.</p>
+          <h1 className="text-xl font-bold tracking-tight">Categories</h1>
+          <p className="text-sm text-muted-foreground">Manage your expense and income categories.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={toggleAll} className="h-8 gap-2">
@@ -116,7 +116,7 @@ function CategorySection({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
       {/* Changed from grid to simple stack */}
       <div className="flex flex-col gap-2">
         {categories.map((category) => (

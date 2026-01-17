@@ -12,7 +12,7 @@ export default async function InvestmentPage() {
   const portfolios = portfoliosResult.success ? (portfoliosResult.data || []) : [];
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="@container/main flex flex-col gap-4">
       <InvestmentPageClient portfolios={portfolios} />
       <PortfolioList
         portfolios={portfolios}
