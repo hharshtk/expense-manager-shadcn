@@ -16,7 +16,14 @@ interface OverviewDashboardProps {
   defaultCurrency: string;
   initialDateRange: { from: Date; to: Date };
   data: {
-    summary: any;
+    summary: {
+      income: number;
+      expenses: number;
+      savings: number;
+      cashInHand: number;
+      netWorth: number;
+      investmentValue: number;
+    };
     trends: any;
     accounts: any;
     transactions: any;

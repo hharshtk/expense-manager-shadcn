@@ -216,6 +216,64 @@ export async function getSpendingByCategory(userId: number, from: Date, to: Date
   }));
 }
 
+export async function getCashAndNetWorth(userId: number) {
+  const accounts = await db
+    .select({
+      type: financialAccounts.type,
+      balance: financialAccounts.currentBalance,
+    })
+    .from(financialAccounts)
+    .where(and(eq(financialAccounts.userId, userId), eq(financialAccounts.isActive, true)));
+
+  // Cash in hand = cash + bank + digital_wallet accounts
+  const liquidAccountTypes = ["cash", "bank", "digital_wallet", "debit_card"];
+  const cashInHand = accounts
+    .filter((acc) => liquidAccountTypes.includes(acc.type))
+    .reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+
+  // Liabilities = credit_card + loan accounts (usually negative or we count as liability)
+  const liabilityTypes = ["credit_card", "loan"];
+  const liabilities = accounts
+    .filter((acc) => liabilityTypes.includes(acc.type))
+    .reduce((sum, acc) => sum + Math.abs(Number(acc.balance || 0)), 0);
+
+  // Get investment current value
+  let investmentValue = 0;
+  try {
+    const investmentResult = await db
+      .select({
+        currentValue: sql<number>`COALESCE(SUM(CAST(${investments.totalInvested} AS DECIMAL) + CAST(${investments.totalGainLoss} AS DECIMAL)), 0)`,
+      })
+      .from(investments)
+      .innerJoin(portfolios, eq(investments.portfolioId, portfolios.id))
+      .where(
+        and(
+          eq(portfolios.userId, userId),
+          eq(portfolios.isActive, true),
+          eq(investments.isActive, true)
+        )
+      );
+    investmentValue = Number(investmentResult[0]?.currentValue || 0);
+  } catch (error) {
+    console.error("Error fetching investment value:", error);
+  }
+
+  // Total assets = all positive balances + investments
+  const totalAssets = accounts
+    .filter((acc) => !liabilityTypes.includes(acc.type))
+    .reduce((sum, acc) => sum + Number(acc.balance || 0), 0) + investmentValue;
+
+  // Net worth = assets - liabilities
+  const netWorth = totalAssets - liabilities;
+
+  return {
+    cashInHand,
+    investmentValue,
+    liabilities,
+    netWorth,
+  };
+}
+
 export async function getInvestmentOverview(userId: number) {
   try {
     // Get portfolio summary
