@@ -65,6 +65,7 @@ type ExpenseFormState = {
   description: string;
   date: string;
   notes: string;
+  tags: string;
   isConfirmed: boolean;
   accountId: number | null;
   category: string;
@@ -85,6 +86,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
     type: "expense",
     amount: "",
     notes: "",
+    tags: "",
     isConfirmed: true,
     accountId: null,
   }));
@@ -132,6 +134,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
         category: form.category,
         date: form.date,
         notes: form.notes || undefined,
+        tags: form.tags || undefined,
         isConfirmed: true,
         accountId: form.accountId,
       });
@@ -146,6 +149,7 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
           type: "expense",
           amount: "",
           notes: "",
+          tags: "",
           isConfirmed: true,
           accountId: null,
         });
@@ -355,6 +359,15 @@ function RecordTransactionButton({ onSuccess }: { onSuccess: () => void }) {
               value={form.notes}
               onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
               placeholder="Optional details"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tx-tags">Tags</Label>
+            <Input
+              id="tx-tags"
+              value={form.tags}
+              onChange={(e) => setForm((prev) => ({ ...prev, tags: e.target.value }))}
+              placeholder="e.g. work, personal, urgent (comma-separated)"
             />
           </div>
         </div>

@@ -59,6 +59,7 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
         description: "",
         date: "",
         notes: "",
+        tags: "",
         category: "",
         expenseItems: [] as Array<{
             name: string;
@@ -78,6 +79,7 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
                 description: item.description || "",
                 date: item.date,
                 notes: item.notes || "",
+                tags: item.tags || "",
                 category: item.category ? item.category.id.toString() : "",
                 expenseItems: item.expenseItems?.map((ei) => ({
                     name: ei.name,
@@ -196,6 +198,7 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
                 description: form.description,
                 date: form.date,
                 notes: form.notes || undefined,
+                tags: form.tags || undefined,
                 category: form.category,
                 isConfirmed: true,
                 expenseItems: form.expenseItems.map((item) => ({
@@ -412,6 +415,16 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
                                 value={form.notes}
                                 onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
                                 placeholder="Optional"
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            <Label htmlFor="tags">Tags</Label>
+                            <Input
+                                id="tags"
+                                value={form.tags}
+                                onChange={(e) => setForm((prev) => ({ ...prev, tags: e.target.value }))}
+                                placeholder="e.g. work, personal, urgent (comma-separated)"
                             />
                         </div>
 

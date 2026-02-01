@@ -3,6 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, EllipsisVertical, Trash2 } from "lucide-react";
 
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -130,6 +131,27 @@ export function createColumns({ onDelete, onUpdate, onEdit, userSettings }: Colu
                 {notes}
               </div>
             )}
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
+    {
+      accessorKey: "tags",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Tags" />,
+      cell: ({ row }) => {
+        const tags = row.original.tags;
+        if (!tags) return null;
+
+        const tagList = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+
+        return (
+          <div className="flex flex-wrap gap-1">
+            {tagList.map((tag, index) => (
+              <Badge key={index} variant="secondary" className="text-xs px-1.5 py-0.5">
+                {tag}
+              </Badge>
+            ))}
           </div>
         );
       },

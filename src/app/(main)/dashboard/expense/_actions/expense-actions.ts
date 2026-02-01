@@ -16,6 +16,7 @@ export type ExpenseFormData = {
   category?: string;
   date: string;
   notes?: string;
+  tags?: string;
   isConfirmed?: boolean;
   accountId?: number | null;
   expenseItems?: ExpenseItemFormData[];
@@ -68,6 +69,7 @@ export async function createExpense(formData: ExpenseFormData): Promise<ActionRe
         categoryId: formData.category ? Number.parseInt(formData.category) : null,
         date: formData.date,
         notes: formData.notes || null,
+        tags: formData.tags || null,
         isConfirmed: formData.isConfirmed ?? true,
         financialAccountId: formData.accountId || null,
       })
@@ -153,6 +155,7 @@ export async function updateExpense(
     if (formData.description !== undefined) updateData.description = formData.description;
     if (formData.date !== undefined) updateData.date = formData.date;
     if (formData.notes !== undefined) updateData.notes = formData.notes || null;
+    if (formData.tags !== undefined) updateData.tags = formData.tags || null;
     if (formData.isConfirmed !== undefined) updateData.isConfirmed = formData.isConfirmed;
     if (formData.category !== undefined) {
       updateData.categoryId = formData.category ? Number.parseInt(formData.category) : null;
