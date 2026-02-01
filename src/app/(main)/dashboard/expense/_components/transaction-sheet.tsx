@@ -35,7 +35,7 @@ import type { UserSettings } from "@/server/user-settings-actions";
 import { getCategories } from "@/actions/categories";
 
 import { updateExpense } from "../_actions/expense-actions";
-import type { Transaction } from "./schema";
+import type { Transaction, ExpenseItem } from "./schema";
 
 type TransactionSheetProps = {
     open: boolean;
@@ -60,6 +60,14 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
         date: "",
         notes: "",
         category: "",
+        expenseItems: [] as Array<{
+            name: string;
+            quantity: string;
+            unit: string;
+            unitPrice: string;
+            totalPrice: string;
+            notes: string;
+        }>,
     });
 
     React.useEffect(() => {
@@ -71,6 +79,14 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
                 date: item.date,
                 notes: item.notes || "",
                 category: item.category ? item.category.id.toString() : "",
+                expenseItems: item.expenseItems?.map((ei) => ({
+                    name: ei.name,
+                    quantity: ei.quantity,
+                    unit: ei.unit || "",
+                    unitPrice: ei.unitPrice || "",
+                    totalPrice: ei.totalPrice,
+                    notes: ei.notes || "",
+                })) || [],
             });
         }
     }, [item]);
@@ -98,6 +114,40 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
         return null;
     }, [categories, form.category, item?.category]);
 
+    // Expense items handlers
+    const addExpenseItem = () => {
+        setForm((prev) => ({
+            ...prev,
+            expenseItems: [
+                ...prev.expenseItems,
+                {
+                    name: "",
+                    quantity: "1",
+                    unit: "",
+                    unitPrice: "",
+                    totalPrice: "",
+                    notes: "",
+                },
+            ],
+        }));
+    };
+
+    const updateExpenseItem = (index: number, field: string, value: string) => {
+        setForm((prev) => ({
+            ...prev,
+            expenseItems: prev.expenseItems.map((item, i) =>
+                i === index ? { ...item, [field]: value } : item
+            ),
+        }));
+    };
+
+    const removeExpenseItem = (index: number) => {
+        setForm((prev) => ({
+            ...prev,
+            expenseItems: prev.expenseItems.filter((_, i) => i !== index),
+        }));
+    };
+
     if (!item) return null;
 
     const amount = Number.parseFloat(form.amount || "0");
@@ -108,11 +158,38 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
         maximumFractionDigits: 2,
     }).format(Math.abs(amount));
 
-    const canSubmit = form.description.trim().length > 0 && form.amount.trim().length > 0 && !isSubmitting;
+    // Calculate total of expense items
+    const expenseItemsTotal = form.expenseItems.reduce((total, item) => {
+        const itemTotal = Number.parseFloat(item.totalPrice || "0");
+        return total + (isNaN(itemTotal) ? 0 : itemTotal);
+    }, 0);
+
+    const parentAmount = Number.parseFloat(form.amount || "0");
+    const isItemsTotalValid = expenseItemsTotal <= parentAmount;
+
+    const canSubmit = form.description.trim().length > 0 && form.amount.trim().length > 0 && !isSubmitting && form.expenseItems.every(item => item.name.trim().length > 0 && item.totalPrice.trim().length > 0) && isItemsTotalValid;
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
         try {
+            // Validate expense items
+            const invalidItems = form.expenseItems.filter(item => 
+                !item.name.trim() || !item.totalPrice.trim()
+            );
+            
+            if (invalidItems.length > 0) {
+                toast.error("Please fill in all required fields for expense items (name and total price)");
+                setIsSubmitting(false);
+                return;
+            }
+
+            // Validate that expense items total doesn't exceed parent amount
+            if (!isItemsTotalValid) {
+                toast.error(`Total of expense items ($${expenseItemsTotal.toFixed(2)}) cannot exceed the transaction amount ($${parentAmount.toFixed(2)})`);
+                setIsSubmitting(false);
+                return;
+            }
+
             const result = await updateExpense(item.id, {
                 type: form.type,
                 amount: form.amount,
@@ -121,6 +198,14 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
                 notes: form.notes || undefined,
                 category: form.category,
                 isConfirmed: true,
+                expenseItems: form.expenseItems.map((item) => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    unit: item.unit || undefined,
+                    unitPrice: item.unitPrice && item.unitPrice.trim() !== "" ? item.unitPrice : undefined,
+                    totalPrice: item.totalPrice,
+                    notes: item.notes || undefined,
+                })),
             });
 
             if (result.success) {
@@ -328,6 +413,150 @@ export function TransactionSheet({ open, onOpenChange, transaction: item, onUpda
                                 onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
                                 placeholder="Optional"
                             />
+                        </div>
+
+                        {/* Expense Items Section */}
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <Label>Items</Label>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={addExpenseItem}
+                                    className="h-8"
+                                >
+                                    Add Item
+                                </Button>
+                            </div>
+
+                            {form.expenseItems.length > 0 && (
+                                <div className="space-y-3">
+                                    {form.expenseItems.map((item, index) => (
+                                        <div key={index} className="rounded-lg border p-3 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-sm font-medium">Item {index + 1}</Label>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => removeExpenseItem(index)}
+                                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                                >
+                                                    ×
+                                                </Button>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor={`item-name-${index}`} className="text-xs">
+                                                        Name *
+                                                    </Label>
+                                                    <Input
+                                                        id={`item-name-${index}`}
+                                                        value={item.name}
+                                                        onChange={(e) => updateExpenseItem(index, "name", e.target.value)}
+                                                        placeholder="e.g., Tomatoes"
+                                                        className={`h-8 ${!item.name.trim() ? 'border-destructive' : ''}`}
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor={`item-quantity-${index}`} className="text-xs">
+                                                        Quantity
+                                                    </Label>
+                                                    <Input
+                                                        id={`item-quantity-${index}`}
+                                                        type="number"
+                                                        step="0.001"
+                                                        value={item.quantity}
+                                                        onChange={(e) => updateExpenseItem(index, "quantity", e.target.value)}
+                                                        placeholder="1"
+                                                        className="h-8"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor={`item-unit-${index}`} className="text-xs">
+                                                        Unit
+                                                    </Label>
+                                                    <Input
+                                                        id={`item-unit-${index}`}
+                                                        value={item.unit}
+                                                        onChange={(e) => updateExpenseItem(index, "unit", e.target.value)}
+                                                        placeholder="kg, lbs, pieces"
+                                                        className="h-8"
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor={`item-unit-price-${index}`} className="text-xs">
+                                                        Unit Price
+                                                    </Label>
+                                                    <Input
+                                                        id={`item-unit-price-${index}`}
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={item.unitPrice}
+                                                        onChange={(e) => updateExpenseItem(index, "unitPrice", e.target.value)}
+                                                        placeholder="0.00"
+                                                        className="h-8"
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor={`item-total-price-${index}`} className="text-xs">
+                                                        Total Price *
+                                                    </Label>
+                                                    <Input
+                                                        id={`item-total-price-${index}`}
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={item.totalPrice}
+                                                        onChange={(e) => updateExpenseItem(index, "totalPrice", e.target.value)}
+                                                        placeholder="0.00"
+                                                        className={`h-8 ${!item.totalPrice.trim() ? 'border-destructive' : ''}`}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor={`item-notes-${index}`} className="text-xs">
+                                                    Notes
+                                                </Label>
+                                                <Input
+                                                    id={`item-notes-${index}`}
+                                                    value={item.notes}
+                                                    onChange={(e) => updateExpenseItem(index, "notes", e.target.value)}
+                                                    placeholder="Optional notes"
+                                                    className="h-8"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Expense Items Summary */}
+                                    <div className="flex flex-col gap-2 p-3 bg-muted/50 rounded-lg">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="font-medium">Items Total:</span>
+                                            <span className={`font-medium ${!isItemsTotalValid ? 'text-destructive' : 'text-green-600'}`}>
+                                                {currencySymbol}{expenseItemsTotal.toFixed(2)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span>Transaction Amount:</span>
+                                            <span className="font-medium">{currencySymbol}{parentAmount.toFixed(2)}</span>
+                                        </div>
+                                        {!isItemsTotalValid && (
+                                            <div className="text-xs text-destructive font-medium">
+                                                ⚠️ Items total exceeds transaction amount by {currencySymbol}{(expenseItemsTotal - parentAmount).toFixed(2)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

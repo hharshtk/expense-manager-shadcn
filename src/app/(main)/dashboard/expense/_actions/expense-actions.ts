@@ -7,7 +7,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth-nextauth";
 import { db } from "@/lib/db";
-import { expenses } from "@/lib/schema";
+import { expenses, expenseItems } from "@/lib/schema";
 
 export type ExpenseFormData = {
   type: "expense" | "income";
@@ -18,6 +18,16 @@ export type ExpenseFormData = {
   notes?: string;
   isConfirmed?: boolean;
   accountId?: number | null;
+  expenseItems?: ExpenseItemFormData[];
+};
+
+export type ExpenseItemFormData = {
+  name: string;
+  quantity: string;
+  unit?: string;
+  unitPrice?: string;
+  totalPrice: string;
+  notes?: string;
 };
 
 export type ActionResult<T = unknown> = { success: true; data: T } | { success: false; error: string };
@@ -79,6 +89,28 @@ export async function createExpense(formData: ExpenseFormData): Promise<ActionRe
       }
     }
 
+    // Create expense items if provided
+    if (formData.expenseItems && formData.expenseItems.length > 0) {
+      const validItems = formData.expenseItems.filter(item => 
+        item.name.trim() && item.totalPrice.trim()
+      );
+      
+      if (validItems.length > 0) {
+        await db.insert(expenseItems).values(
+          validItems.map((item, index) => ({
+            expenseId: newExpense.id,
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit || null,
+            unitPrice: item.unitPrice || null,
+            totalPrice: item.totalPrice,
+            notes: item.notes || null,
+            sortOrder: index,
+          })),
+        );
+      }
+    }
+
     revalidatePath("/dashboard/expense");
     revalidatePath("/dashboard/accounts");
     return { success: true, data: newExpense };
@@ -131,6 +163,32 @@ export async function updateExpense(
       .set(updateData)
       .where(and(eq(expenses.id, id), eq(expenses.userId, userId)))
       .returning();
+
+    // Update expense items if provided
+    if (formData.expenseItems !== undefined) {
+      // Delete existing expense items
+      await db.delete(expenseItems).where(eq(expenseItems.expenseId, id));
+
+      // Create new expense items
+      const validItems = formData.expenseItems.filter(item => 
+        item.name.trim() && item.totalPrice.trim()
+      );
+      
+      if (validItems.length > 0) {
+        await db.insert(expenseItems).values(
+          validItems.map((item, index) => ({
+            expenseId: id,
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit || null,
+            unitPrice: item.unitPrice || null,
+            totalPrice: item.totalPrice,
+            notes: item.notes || null,
+            sortOrder: index,
+          })),
+        );
+      }
+    }
 
     revalidatePath("/dashboard/expense");
     return { success: true, data: updatedExpense };

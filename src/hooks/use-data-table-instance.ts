@@ -5,6 +5,7 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   getCoreRowModel,
+  getExpandedRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
   getFilteredRowModel,
@@ -36,6 +37,7 @@ export function useDataTableInstance<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [expanded, setExpanded] = React.useState({});
   const [pagination, setPagination] = React.useState({
     pageIndex: defaultPageIndex ?? 0,
     pageSize: defaultPageSize ?? 10,
@@ -50,6 +52,7 @@ export function useDataTableInstance<TData, TValue>({
       rowSelection,
       columnFilters,
       pagination,
+      expanded,
     },
     enableRowSelection,
     getRowId: getRowId ?? ((row) => (row as any).id.toString()),
@@ -58,12 +61,14 @@ export function useDataTableInstance<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
+    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    getExpandedRowModel: getExpandedRowModel(),
     // Prevent automatic pagination reset during render to avoid state updates before mount
     autoResetPageIndex: false,
   });

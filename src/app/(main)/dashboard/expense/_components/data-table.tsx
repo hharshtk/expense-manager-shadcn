@@ -522,7 +522,7 @@ export function DataTable({ data: initialData, userSettings, testButton }: { dat
         </div>
         <TabsContent value={activeView} className="relative flex flex-col gap-4 overflow-auto">
           <div className="overflow-hidden rounded-lg border">
-            <DataTableNew table={table} columns={columns} onReorder={setData} />
+            <DataTableNew table={table} columns={columns} onReorder={setData} userSettings={userSettings} />
           </div>
           <DataTablePagination table={table} />
         </TabsContent>

@@ -20,12 +20,14 @@ import { type ColumnDef, flexRender, type Table as TanStackTable } from "@tansta
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import { DraggableRow } from "./draggable-row";
+import { getCurrencySymbol } from "@/lib/currency";
 
 interface DataTableProps<TData, TValue> {
   table: TanStackTable<TData>;
   columns: ColumnDef<TData, TValue>[];
   dndEnabled?: boolean;
   onReorder?: (newData: TData[]) => void;
+  userSettings?: { defaultCurrency: string; locale: string };
 }
 
 function renderTableBody<TData, TValue>({
@@ -33,11 +35,13 @@ function renderTableBody<TData, TValue>({
   columns,
   dndEnabled,
   dataIds,
+  userSettings,
 }: {
   table: TanStackTable<TData>;
   columns: ColumnDef<TData, TValue>[];
   dndEnabled: boolean;
   dataIds: UniqueIdentifier[];
+  userSettings?: { defaultCurrency: string; locale: string };
 }) {
   if (!table.getRowModel().rows.length) {
     return (
@@ -48,21 +52,59 @@ function renderTableBody<TData, TValue>({
       </TableRow>
     );
   }
+
   if (dndEnabled) {
     return (
       <SortableContext items={dataIds} strategy={verticalListSortingStrategy}>
         {table.getRowModel().rows.map((row) => (
-          <DraggableRow key={row.id} row={row} />
+          <React.Fragment key={row.id}>
+            <DraggableRow row={row} userSettings={userSettings} />
+          </React.Fragment>
         ))}
       </SortableContext>
     );
   }
+
   return table.getRowModel().rows.map((row) => (
-    <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-      {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-      ))}
-    </TableRow>
+    <React.Fragment key={row.id}>
+      <TableRow data-state={row.getIsSelected() && "selected"}>
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+        ))}
+      </TableRow>
+      {row.getIsExpanded() && (
+        <TableRow key={`${row.id}-expanded`}>
+          <TableCell colSpan={columns.length} className="bg-muted/30 border-t-0 p-4">
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Items:</h4>
+              <div className="space-y-1">
+                {(row.original as any).expenseItems?.map((item: any, index: number) => {
+                  const currencySymbol = userSettings ? getCurrencySymbol(userSettings.defaultCurrency) : '$';
+                  return (
+                    <div key={item.id || index} className="flex items-center justify-between text-sm bg-background rounded p-2 border">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.name}</span>
+                        <span className="text-muted-foreground">
+                          {item.quantity} {item.unit || 'units'}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium">{item.totalPrice ? `${currencySymbol}${item.totalPrice}` : ''}</div>
+                        {item.unitPrice && (
+                          <div className="text-xs text-muted-foreground">
+                            {currencySymbol}{item.unitPrice} per {item.unit || 'unit'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </React.Fragment>
   ));
 }
 
@@ -71,6 +113,7 @@ export function DataTable<TData, TValue>({
   columns,
   dndEnabled = false,
   onReorder,
+  userSettings,
 }: DataTableProps<TData, TValue>) {
   const dataIds: UniqueIdentifier[] = table.getRowModel().rows.map((row) => Number(row.id) as UniqueIdentifier);
   const sortableId = React.useId();
@@ -104,7 +147,7 @@ export function DataTable<TData, TValue>({
         ))}
       </TableHeader>
       <TableBody className="**:data-[slot=table-cell]:first:w-8">
-        {renderTableBody({ table, columns, dndEnabled, dataIds })}
+        {renderTableBody({ table, columns, dndEnabled, dataIds, userSettings })}
       </TableBody>
     </Table>
   );

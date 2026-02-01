@@ -1,10 +1,10 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 
 import { getCurrentUser } from "@/lib/auth";
 import { authOptions } from "@/lib/auth-nextauth";
 import { db } from "@/lib/db";
-import { categories, expenses } from "@/lib/schema";
+import { categories, expenses, expenseItems } from "@/lib/schema";
 
 async function getAuthenticatedUserId(): Promise<number | null> {
   const session = await getServerSession(authOptions);
@@ -67,7 +67,28 @@ export async function getExpenses() {
     .where(eq(expenses.userId, userId))
     .orderBy(desc(expenses.date), desc(expenses.createdAt));
 
-  return userExpenses;
+  // Fetch expense items for each expense
+  const expenseIds = userExpenses.map(e => e.id);
+  const items = expenseIds.length > 0 ? await db
+    .select()
+    .from(expenseItems)
+    .where(inArray(expenseItems.expenseId, expenseIds))
+    .orderBy(expenseItems.sortOrder) : [];
+
+  // Group items by expense ID
+  const itemsByExpenseId = items.reduce((acc, item) => {
+    if (!acc[item.expenseId]) {
+      acc[item.expenseId] = [];
+    }
+    acc[item.expenseId].push(item);
+    return acc;
+  }, {} as Record<number, typeof items>);
+
+  // Combine expenses with their items
+  return userExpenses.map(expense => ({
+    ...expense,
+    expenseItems: itemsByExpenseId[expense.id] || [],
+  }));
 }
 
 /**
@@ -79,12 +100,58 @@ export async function getExpenseById(id: number) {
     return null;
   }
 
-  const [expense] = await db.select().from(expenses).where(eq(expenses.id, id)).limit(1);
+  const [expense] = await db
+    .select({
+      id: expenses.id,
+      userId: expenses.userId,
+      description: expenses.description,
+      amount: expenses.amount,
+      date: expenses.date,
+      type: expenses.type,
+      notes: expenses.notes,
+      isConfirmed: expenses.isConfirmed,
+      categoryId: expenses.categoryId,
+      financialAccountId: expenses.financialAccountId,
+      paymentMethodId: expenses.paymentMethodId,
+      budgetId: expenses.budgetId,
+      currency: expenses.currency,
+      time: expenses.time,
+      location: expenses.location,
+      merchant: expenses.merchant,
+      tags: expenses.tags,
+      isRecurring: expenses.isRecurring,
+      recurrenceType: expenses.recurrenceType,
+      recurrenceEndDate: expenses.recurrenceEndDate,
+      parentExpenseId: expenses.parentExpenseId,
+      isExcludedFromStats: expenses.isExcludedFromStats,
+      createdAt: expenses.createdAt,
+      updatedAt: expenses.updatedAt,
+      category: {
+        id: categories.id,
+        name: categories.name,
+        icon: categories.icon,
+        color: categories.color,
+      },
+    })
+    .from(expenses)
+    .leftJoin(categories, eq(expenses.categoryId, categories.id))
+    .where(eq(expenses.id, id))
+    .limit(1);
 
   // Ensure expense belongs to user
   if (!expense || expense.userId !== userId) {
     return null;
   }
 
-  return expense;
+  // Fetch expense items
+  const items = await db
+    .select()
+    .from(expenseItems)
+    .where(eq(expenseItems.expenseId, id))
+    .orderBy(expenseItems.sortOrder);
+
+  return {
+    ...expense,
+    expenseItems: items,
+  };
 }

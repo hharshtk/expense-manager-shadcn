@@ -263,6 +263,37 @@ export const expenses = pgTable(
 );
 
 // ============================================================================
+// EXPENSE ITEMS
+// ============================================================================
+
+/**
+ * Expense Items - Individual items within a transaction (for grouped purchases)
+ * Allows tracking sub-items with quantities, weights, etc.
+ */
+export const expenseItems = pgTable(
+  "expense_items",
+  {
+    id: serial("id").primaryKey(),
+    expenseId: integer("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(), // Item name (e.g., "Tomatoes", "Apples")
+    quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull().default("1"), // Quantity purchased
+    unit: varchar("unit", { length: 50 }), // Unit of measurement (kg, lbs, pieces, liters, etc.)
+    unitPrice: decimal("unit_price", { precision: 10, scale: 2 }), // Price per unit (optional, can be calculated)
+    totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(), // Total price for this item
+    notes: text("notes"), // Additional notes for this item
+    sortOrder: integer("sort_order").default(0), // For ordering items within a transaction
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_expense_items_expense_id").on(table.expenseId),
+    index("idx_expense_items_sort_order").on(table.expenseId, table.sortOrder),
+  ],
+);
+
+// ============================================================================
 // BUDGETS
 // ============================================================================
 
@@ -700,6 +731,14 @@ export const expensesRelations = relations(expenses, ({ one, many }) => ({
   }),
   recurringInstances: many(expenses, { relationName: "recurringInstances" }),
   expenseTags: many(expenseTags),
+  expenseItems: many(expenseItems),
+}));
+
+export const expenseItemsRelations = relations(expenseItems, ({ one }) => ({
+  expense: one(expenses, {
+    fields: [expenseItems.expenseId],
+    references: [expenses.id],
+  }),
 }));
 
 export const budgetsRelations = relations(budgets, ({ one, many }) => ({
@@ -836,6 +875,8 @@ export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
 export type ExpenseTag = typeof expenseTags.$inferSelect;
 export type NewExpenseTag = typeof expenseTags.$inferInsert;
+export type ExpenseItem = typeof expenseItems.$inferSelect;
+export type NewExpenseItem = typeof expenseItems.$inferInsert;
 export type SavingsGoal = typeof savingsGoals.$inferSelect;
 export type NewSavingsGoal = typeof savingsGoals.$inferInsert;
 export type Conversation = typeof conversations.$inferSelect;

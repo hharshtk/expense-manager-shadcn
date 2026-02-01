@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowDownLeft, ArrowUpRight, EllipsisVertical, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, EllipsisVertical, Trash2 } from "lucide-react";
 
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,32 @@ export function createColumns({ onDelete, onUpdate, onEdit, userSettings }: Colu
       ),
       enableSorting: false,
       enableHiding: false,
+    },
+    {
+      id: "expand",
+      header: () => null,
+      cell: ({ row }) => {
+        const hasItems = row.original.expenseItems && row.original.expenseItems.length > 0;
+        if (!hasItems) return null;
+
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => row.toggleExpanded()}
+          >
+            {row.getIsExpanded() ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
+        );
+      },
+      enableSorting: false,
+      enableHiding: false,
+      size: 40,
     },
     {
       accessorKey: "category",
