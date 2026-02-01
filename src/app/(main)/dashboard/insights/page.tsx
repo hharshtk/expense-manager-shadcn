@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, PanelLeftClose, PanelLeftOpen, Plus, Send, Trash2, User, MessageSquare, Sparkles } from "lucide-react";
+import { Loader2, PanelLeftClose, PanelLeftOpen, Plus, Send, Trash2, User, MessageSquare, Sparkles, Receipt } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { useSession } from "next-auth/react";
 
@@ -214,6 +214,19 @@ export default function InsightsPage() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  const handleRecordTransaction = () => {
+    setInputValue("@record ");
+    // Focus the textarea
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.focus();
+      // Set cursor position after "@record "
+      setTimeout(() => {
+        textarea.setSelectionRange(8, 8);
+      }, 0);
     }
   };
 
@@ -471,21 +484,41 @@ export default function InsightsPage() {
                 className="min-h-[44px] max-h-48 resize-none py-3 px-3 bg-transparent border-none shadow-none focus-visible:ring-0"
                 disabled={isLoading}
               />
-              <Button
-                type="submit"
-                size="icon"
-                className={cn(
-                  "shrink-0 h-9 w-9 rounded-xl transition-all",
-                  !inputValue.trim() || isLoading ? "opacity-50" : "opacity-100"
-                )}
-                disabled={isLoading || !inputValue.trim()}
-              >
-                {isLoading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-              </Button>
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-all"
+                      onClick={handleRecordTransaction}
+                      disabled={isLoading}
+                      title="Record a transaction"
+                    >
+                      <Receipt className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Record Transaction
+                  </TooltipContent>
+                </Tooltip>
+                <Button
+                  type="submit"
+                  size="icon"
+                  className={cn(
+                    "shrink-0 h-9 w-9 rounded-xl transition-all",
+                    !inputValue.trim() || isLoading ? "opacity-50" : "opacity-100"
+                  )}
+                  disabled={isLoading || !inputValue.trim()}
+                >
+                  {isLoading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                </Button>
+              </div>
             </form>
           </div>
         </div>

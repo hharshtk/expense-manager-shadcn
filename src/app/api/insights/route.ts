@@ -3,9 +3,9 @@ import { createGateway } from "@ai-sdk/gateway";
 import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { conversations, messages, expenses, investments, budgets, categories, financialAccounts, users } from "@/lib/schema";
+import { conversations, messages, expenses, expenseItems, investments, budgets, categories, financialAccounts, users } from "@/lib/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { eq, desc, gte, lte, and, sql, sum, between, asc } from "drizzle-orm";
+import { eq, desc, gte, lte, and, sql, sum, between, asc, or, ilike } from "drizzle-orm";
 
 // Create Vercel AI Gateway provider
 const gateway = createGateway({
@@ -13,7 +13,7 @@ const gateway = createGateway({
 });
 
 // Wrap the model with DevTools middleware for debugging (development only)
-const baseModel = gateway("openai/gpt-4o-mini");
+const baseModel = gateway("anthropic/claude-haiku-4.5");
 const wrappedModel = process.env.NODE_ENV === 'development' 
   ? wrapLanguageModel({
       model: baseModel,
@@ -853,6 +853,378 @@ const insightsTools = {
       };
     },
   }),
+
+  // ============================================================================
+  // TRANSACTION RECORDING TOOLS
+  // ============================================================================
+
+  parseTransactionText: tool({
+    description: `Parse natural language transaction text and extract structured transaction data. 
+    This tool is used when the user wants to record expenses using @record command or mentions they want to add/record transactions.
+    It can handle:
+    - Single transactions like "Coffee at Starbucks ₹250"
+    - Order receipts with multiple items (Amazon, Blinkit, Zepto, Swiggy, etc.)
+    - Bill summaries with discounts, delivery fees, etc.
+    
+    The tool extracts item names, quantities, prices, and suggests categories based on item names.
+    ALWAYS call getAllCategories first to get the list of available categories for accurate matching.`,
+    inputSchema: z.object({
+      transactionText: z.string().describe("The raw transaction text from user - could be a receipt, order summary, or natural language description"),
+      transactionDate: z.string().optional().describe("Transaction date in YYYY-MM-DD format. If not provided, uses current date."),
+      merchant: z.string().optional().describe("Merchant/store name if identifiable from context"),
+    }),
+    execute: async ({ transactionText, transactionDate, merchant }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      // Get user's currency
+      const [userData] = await db
+        .select({ 
+          defaultCurrency: users.defaultCurrency,
+          timezone: users.timezone 
+        })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      
+      const currency = userData?.defaultCurrency || "USD";
+      const timezone = userData?.timezone || "UTC";
+
+      // Get current date in user's timezone if not provided
+      let date = transactionDate;
+      if (!date) {
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-CA', { 
+          timeZone: timezone, 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit' 
+        });
+        date = formatter.format(now);
+      }
+
+      // Get available categories for matching
+      const categoryList = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          type: categories.type,
+        })
+        .from(categories)
+        .where(and(
+          eq(categories.isActive, true),
+          eq(categories.type, "expense"),
+          sql`(${categories.userId} = ${user.id} OR ${categories.isSystem} = true)`
+        ))
+        .orderBy(categories.name);
+
+      return {
+        message: "Transaction text received. Please analyze the text to extract items and their details.",
+        rawText: transactionText,
+        suggestedDate: date,
+        suggestedMerchant: merchant || null,
+        currency: currency,
+        availableCategories: categoryList.map(c => ({ id: c.id, name: c.name })),
+        instructions: `
+          Analyze the transaction text and extract:
+          1. Individual items with: name, quantity, unit (if applicable), unit price, total price
+          2. Overall transaction total (the final amount paid)
+          3. Any discounts applied
+          4. Delivery/handling fees if present
+          5. Suggest a category for each item based on the available categories
+          6. Suggest an overall category for the main transaction
+          
+          Present the parsed data to the user for confirmation before saving.
+        `,
+      };
+    },
+  }),
+
+  suggestCategoryForItem: tool({
+    description: "Suggest the most appropriate category for an item based on its name. Uses fuzzy matching against available categories and handles parent categories properly.",
+    inputSchema: z.object({
+      itemName: z.string().describe("The name of the item to categorize"),
+      itemKeywords: z.array(z.string()).optional().describe("Additional keywords to help categorization (e.g., 'food', 'electronics', 'household')"),
+    }),
+    execute: async ({ itemName, itemKeywords }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      // Get available expense categories with parent information
+      const categoryList = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          parentId: categories.parentId,
+          isSystem: categories.isSystem,
+        })
+        .from(categories)
+        .where(and(
+          eq(categories.isActive, true),
+          eq(categories.type, "expense"),
+          sql`(${categories.userId} = ${user.id} OR ${categories.isSystem} = true)`
+        ))
+        .orderBy(categories.name);
+
+      // Common category mappings for items
+      const categoryMappings: Record<string, string[]> = {
+        "Groceries": ["ice cream", "milk", "bread", "vegetables", "fruits", "rice", "dal", "flour", "sugar", "oil", "butter", "cheese", "yogurt", "eggs", "meat", "chicken", "fish", "groceries", "vegetables", "amul", "nestle", "britannia", "maggi", "snacks", "biscuits", "cookies"],
+        "Food & Dining": ["restaurant", "cafe", "coffee", "tea", "pizza", "burger", "biryani", "zomato", "swiggy", "dining", "food", "meal", "breakfast", "lunch", "dinner", "snack"],
+        "Bakery": ["cake", "muffin", "pastry", "bread", "bakery", "cupcake", "brownie", "cookie", "donut", "croissant"],
+        "Health & Wellness": ["medicine", "pharmacy", "doctor", "hospital", "clinic", "health", "vitamin", "supplement", "apollo", "1mg", "pharmeasy", "netmeds"],
+        "Shopping": ["amazon", "flipkart", "myntra", "clothing", "shoes", "electronics", "gadgets", "accessories"],
+        "Entertainment": ["movie", "netflix", "prime", "spotify", "gaming", "concert", "theater"],
+        "Transportation": ["uber", "ola", "rapido", "petrol", "diesel", "fuel", "metro", "bus", "train", "flight", "taxi"],
+        "Utilities": ["electricity", "water", "gas", "internet", "phone", "mobile", "recharge", "bill"],
+        "Personal Care": ["salon", "haircut", "spa", "cosmetics", "skincare", "beauty"],
+        "Household": ["cleaning", "detergent", "soap", "shampoo", "toilet", "kitchen", "home"],
+      };
+
+      const itemLower = itemName.toLowerCase();
+      const keywords = itemKeywords?.map(k => k.toLowerCase()) || [];
+      
+      let matchedCategory = null;
+      let confidence = "low";
+
+      // Try to match based on item name and keywords
+      for (const [categoryName, patterns] of Object.entries(categoryMappings)) {
+        for (const pattern of patterns) {
+          if (itemLower.includes(pattern) || keywords.some(k => k.includes(pattern))) {
+            // Find matching category in user's list - prefer exact matches first
+            let found = categoryList.find(c => 
+              c.name.toLowerCase() === categoryName.toLowerCase()
+            );
+            
+            // If no exact match, try partial match
+            if (!found) {
+              found = categoryList.find(c => 
+                c.name.toLowerCase().includes(categoryName.toLowerCase()) ||
+                categoryName.toLowerCase().includes(c.name.toLowerCase())
+              );
+            }
+            
+            if (found) {
+              matchedCategory = found;
+              confidence = "high";
+              break;
+            }
+          }
+        }
+        if (matchedCategory) break;
+      }
+
+      // If no match found, suggest first available category or null
+      if (!matchedCategory && categoryList.length > 0) {
+        // Try to find a generic "Other" or "Miscellaneous" category
+        matchedCategory = categoryList.find(c => 
+          c.name.toLowerCase().includes("other") || 
+          c.name.toLowerCase().includes("misc") ||
+          c.name.toLowerCase().includes("general")
+        ) || categoryList[0];
+        confidence = "low";
+      }
+
+      return {
+        itemName,
+        suggestedCategory: matchedCategory ? {
+          id: matchedCategory.id,
+          name: matchedCategory.name,
+          isSystem: matchedCategory.isSystem,
+        } : null,
+        confidence,
+        allCategories: categoryList.map(c => ({ 
+          id: c.id, 
+          name: c.name,
+          isSystem: c.isSystem,
+        })),
+      };
+    },
+  }),
+
+  saveTransaction: tool({
+    description: `Save a transaction to the database after user confirmation. 
+    This tool creates a main expense entry and optionally saves individual items as expense_items.
+    IMPORTANT: Only call this after the user has confirmed the transaction details and category assignments.`,
+    inputSchema: z.object({
+      transaction: z.object({
+        amount: z.number().describe("Total transaction amount (final amount paid)"),
+        description: z.string().describe("Brief description of the transaction"),
+        categoryId: z.number().describe("The category ID for the main transaction"),
+        date: z.string().describe("Transaction date in YYYY-MM-DD format"),
+        merchant: z.string().optional().describe("Merchant/store name"),
+        notes: z.string().optional().describe("Additional notes for the transaction"),
+        tags: z.array(z.string()).optional().describe("Tags for the transaction (comma-separated)"),
+      }),
+      items: z.array(z.object({
+        name: z.string().describe("Item name"),
+        quantity: z.number().default(1).describe("Quantity"),
+        unit: z.string().optional().describe("Unit of measurement (kg, ml, pieces, etc.)"),
+        unitPrice: z.number().optional().describe("Price per unit"),
+        totalPrice: z.number().describe("Total price for this item"),
+        notes: z.string().optional().describe("Notes for this specific item"),
+      })).optional().describe("Individual items within the transaction (for grouped purchases)"),
+    }),
+    execute: async ({ transaction, items }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      // Get user's default currency
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      // Validate category exists
+      const [category] = await db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(eq(categories.id, transaction.categoryId))
+        .limit(1);
+
+      if (!category) {
+        throw new Error(`Category with ID ${transaction.categoryId} not found`);
+      }
+
+      // Create the main expense entry
+      const [newExpense] = await db
+        .insert(expenses)
+        .values({
+          userId: user.id,
+          categoryId: transaction.categoryId,
+          type: "expense",
+          amount: String(transaction.amount),
+          currency: currency,
+          description: transaction.description,
+          notes: transaction.notes || null,
+          tags: transaction.tags ? transaction.tags.join(",") : null,
+          date: transaction.date,
+          merchant: transaction.merchant || null,
+          isConfirmed: true,
+        })
+        .returning();
+
+      // If there are individual items, save them
+      let savedItems: any[] = [];
+      if (items && items.length > 0) {
+        const itemsToInsert = items.map((item, index) => ({
+          expenseId: newExpense.id,
+          name: item.name,
+          quantity: String(item.quantity),
+          unit: item.unit || null,
+          unitPrice: item.unitPrice ? String(item.unitPrice) : null,
+          totalPrice: String(item.totalPrice),
+          notes: item.notes || null,
+          sortOrder: index,
+        }));
+
+        savedItems = await db
+          .insert(expenseItems)
+          .values(itemsToInsert)
+          .returning();
+      }
+
+      return {
+        success: true,
+        message: `Transaction saved successfully!`,
+        expense: {
+          id: newExpense.id,
+          amount: formatCurrency(transaction.amount, currency),
+          description: transaction.description,
+          category: category.name,
+          date: transaction.date,
+          merchant: transaction.merchant || "Not specified",
+          notes: transaction.notes || null,
+          tags: transaction.tags || [],
+        },
+        itemCount: savedItems.length,
+        savedItems: savedItems.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          totalPrice: formatCurrency(item.totalPrice, currency),
+          notes: item.notes || null,
+        })),
+      };
+    },
+  }),
+
+  saveBulkTransactions: tool({
+    description: `Save multiple separate transactions at once. Use this when the user provides multiple unrelated transactions.
+    Each transaction is saved as a separate expense entry.
+    IMPORTANT: Only call this after the user has confirmed all transaction details.`,
+    inputSchema: z.object({
+      transactions: z.array(z.object({
+        amount: z.number().describe("Transaction amount"),
+        description: z.string().describe("Brief description"),
+        categoryId: z.number().describe("Category ID"),
+        date: z.string().describe("Date in YYYY-MM-DD format"),
+        merchant: z.string().optional().describe("Merchant name"),
+      })),
+    }),
+    execute: async ({ transactions }) => {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const [userData] = await db
+        .select({ defaultCurrency: users.defaultCurrency })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const currency = userData?.defaultCurrency || "USD";
+
+      const savedTransactions: any[] = [];
+      const errors: any[] = [];
+
+      for (const txn of transactions) {
+        try {
+          // Validate category
+          const [category] = await db
+            .select({ id: categories.id, name: categories.name })
+            .from(categories)
+            .where(eq(categories.id, txn.categoryId))
+            .limit(1);
+
+          if (!category) {
+            errors.push({ description: txn.description, error: `Category ID ${txn.categoryId} not found` });
+            continue;
+          }
+
+          const [newExpense] = await db
+            .insert(expenses)
+            .values({
+              userId: user.id,
+              categoryId: txn.categoryId,
+              type: "expense",
+              amount: String(txn.amount),
+              currency: currency,
+              description: txn.description,
+              date: txn.date,
+              merchant: txn.merchant || null,
+              isConfirmed: true,
+            })
+            .returning();
+
+          savedTransactions.push({
+            id: newExpense.id,
+            amount: formatCurrency(txn.amount, currency),
+            description: txn.description,
+            category: category.name,
+            date: txn.date,
+          });
+        } catch (error: any) {
+          errors.push({ description: txn.description, error: error.message });
+        }
+      }
+
+      return {
+        success: errors.length === 0,
+        message: `Saved ${savedTransactions.length} of ${transactions.length} transactions`,
+        savedTransactions,
+        errors: errors.length > 0 ? errors : undefined,
+      };
+    },
+  }),
 };
 
 // Helper function to get currency symbol
@@ -875,6 +1247,85 @@ Before answering ANY question about finances, dates, or money, you MUST first ca
 - The user's timezone (use this for accurate date calculations)
 - The current date/time in their timezone
 - Pre-calculated date ranges for common periods (this month, last month, etc.)
+
+## @record COMMAND - TRANSACTION RECORDING
+When the user types **@record** or mentions they want to add/record/log a transaction or expense, immediately recognize this as a transaction recording request and respond with helpful guidance:
+
+### Immediate Response to @record
+When you see "@record", respond with:
+"📝 **Transaction Recording Mode**
+I can help you record transactions! Here are some examples:
+
+**Single transaction:**
+@record Coffee at Starbucks ₹250
+
+**Order receipt (multiple items):**
+@record
+B0CYQGKSWM Amul Vanilla Gold Ice Cream 1 L ₹210
+B0DR8CKJT7 Amul Dark Chocolate Frostik Ice Cream 70 ml ₹35
+B0DR8D4377 Amul Coffee Bar Ice Cream 60 ml ₹18
+₹20 discount
+Delivery fee ₹30
+You pay ₹485
+
+**Natural language:**
+@record Spent ₹150 on groceries at Big Bazaar
+
+Just paste your receipt or describe your transaction after @record, and I'll parse it automatically!"
+
+### Step 1: Parse the Transaction
+Use \`parseTransactionText\` with the user's input. This could be:
+- A simple transaction: "@record Coffee at Starbucks ₹250"
+- An order receipt with multiple items (from Amazon, Blinkit, Zepto, Swiggy, etc.)
+- Bill summaries with discounts, delivery fees, etc.
+
+### Step 2: Extract & Analyze Items
+From the raw text, intelligently extract:
+1. **Individual items**: name, quantity, unit (if applicable), unit price, total price
+2. **Transaction total**: The final amount paid (look for "You pay", "Total", "Grand Total")
+3. **Discounts**: Any savings or discounts applied
+4. **Extra fees**: Delivery fees, handling charges, etc.
+5. **Merchant**: Identify the store/platform from context
+
+### Step 3: Suggest Categories
+For each item and the overall transaction, suggest appropriate categories based on:
+- Item names (e.g., "Ice Cream" → Groceries, "Muffin" → Bakery/Groceries)
+- Merchant type (e.g., Swiggy → Food & Dining, Amazon → Shopping)
+- Use the \`suggestCategoryForItem\` tool for better matching
+
+### Step 4: Present for Confirmation
+Show the user a clear summary table:
+
+**📝 Transaction Summary**
+| # | Item | Qty | Price | Category |
+|---|------|-----|-------|----------|
+| 1 | Amul Ice Cream | 1 L | ₹210 | Groceries |
+| 2 | Choco Muffin | 1 | ₹31 | Groceries |
+
+**💰 Bill Details**
+- Items Total: ₹426
+- Delivery: Free
+- **You Pay: ₹426**
+
+**🏷️ Main Category:** Groceries
+**📅 Date:** 2026-02-01
+**🏪 Merchant:** Blinkit
+
+Ask: "Should I save this transaction? You can also change the category by telling me."
+
+### Step 5: Handle User Response
+- If user says **"yes"**, **"save"**, **"confirm"**: Call \`saveTransaction\` with the data
+- If user wants to **change category**: Update and show again
+- If user says **"no"** or **"cancel"**: Acknowledge and don't save
+
+### Step 6: Confirm Save
+After saving, show confirmation:
+"✅ Transaction saved! ₹426 recorded under Groceries for Feb 1, 2026."
+
+### Special Cases:
+- **Multiple unrelated transactions**: Use \`saveBulkTransactions\`
+- **Single item transactions**: Don't need to save expense_items, just the main expense
+- **Order with multiple items**: Save as one expense with expense_items for detail tracking
 
 ## Date Handling Rules
 - When user says "this month", use the dateRanges.thisMonth from getUserContext
